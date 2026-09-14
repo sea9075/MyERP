@@ -43,7 +43,7 @@ public class SalesOrderServiceTests
             Items = [new CreateSalesOrderItemRequest { ProductId = 1, Quantity = 10, UnitPrice = 20 }],
         };
 
-        await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.CreateAsync(request, currentUserId: 1));
+        await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.CreateAsync(request, currentUserId: 1, currentUsername: "tester"));
 
         // 庫存不足應該整張單失敗，商品庫存完全不變。
         Assert.Equal(5, product.CurrentStock);
@@ -66,12 +66,12 @@ public class SalesOrderServiceTests
             ],
         };
 
-        await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.CreateAsync(request, currentUserId: 1));
+        await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.CreateAsync(request, currentUserId: 1, currentUsername: "tester"));
         Assert.Equal(10, product.CurrentStock);
     }
 
     [Fact]
-    public async Task CreateAsync_成功時應該扣減商品庫存並寫入InventoryTransaction()
+    public async Task CreateAsync_成功時應該扣減商品庫存並寫入InventoryTransaction與稽核欄位()
     {
         var product = new Product { Id = 1, Name = "測試商品", Sku = "SKU-1", CurrentStock = 30 };
 
@@ -103,10 +103,14 @@ public class SalesOrderServiceTests
             Items = [new CreateSalesOrderItemRequest { ProductId = 1, Quantity = 12, UnitPrice = 25 }],
         };
 
-        var result = await _sut.CreateAsync(request, currentUserId: 7);
+        var result = await _sut.CreateAsync(request, currentUserId: 7, currentUsername: "alice");
 
         Assert.Equal(18, product.CurrentStock);
         Assert.StartsWith("SO-", result.OrderNo);
+
+        Assert.Equal("alice", result.CreatedBy);
+        Assert.Equal("alice", result.UpdatedBy);
+        Assert.Equal(result.CreatedAt, result.UpdatedAt);
 
         _inventoryTransactionRepository.Verify(r => r.Add(It.Is<InventoryTransaction>(t =>
             t.ProductId == 1 &&
@@ -114,5 +118,49 @@ public class SalesOrderServiceTests
             t.QuantityChange == -12 &&
             t.StockAfter == 18 &&
             t.CreatedByUserId == 7)), Times.Once);
+    }
+
+    [Fact]
+    public async Task VoidAsync_成功時應該加回庫存並寫入SaleVoid異動與更新稽核欄位()
+    {
+        var product = new Product { Id = 1, Name = "測試商品", Sku = "SKU-1", CurrentStock = 18 };
+        var order = new SalesOrder
+        {
+            Id = 200,
+            OrderNo = "SO-20260914-001",
+            Status = OrderStatus.Normal,
+            CreatedBy = "alice",
+            UpdatedBy = "alice",
+            Items = [new SalesOrderItem { ProductId = 1, Product = product, Quantity = 12, UnitPrice = 25, Subtotal = 300 }],
+        };
+
+        _salesOrderRepository.Setup(r => r.GetByIdAsync(200, It.IsAny<CancellationToken>())).ReturnsAsync(order);
+        _productRepository.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(product);
+
+        var result = await _sut.VoidAsync(200, currentUserId: 7, currentUsername: "bob");
+
+        // 原本出貨扣掉的 12 要加回去：18 + 12 = 30。
+        Assert.Equal(30, product.CurrentStock);
+        Assert.Equal(nameof(OrderStatus.Voided), result.Status);
+        Assert.Equal(OrderStatus.Voided, order.Status);
+
+        Assert.Equal("alice", result.CreatedBy);
+        Assert.Equal("bob", result.UpdatedBy);
+
+        _inventoryTransactionRepository.Verify(r => r.Add(It.Is<InventoryTransaction>(t =>
+            t.ProductId == 1 &&
+            t.ChangeType == InventoryChangeType.SaleVoid &&
+            t.QuantityChange == 12 &&
+            t.StockAfter == 30 &&
+            t.CreatedByUserId == 7)), Times.Once);
+    }
+
+    [Fact]
+    public async Task VoidAsync_已經作廢過的單應該拋出BusinessRuleException()
+    {
+        var order = new SalesOrder { Id = 200, OrderNo = "SO-20260914-001", Status = OrderStatus.Voided, Items = [] };
+        _salesOrderRepository.Setup(r => r.GetByIdAsync(200, It.IsAny<CancellationToken>())).ReturnsAsync(order);
+
+        await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.VoidAsync(200, currentUserId: 7, currentUsername: "bob"));
     }
 }

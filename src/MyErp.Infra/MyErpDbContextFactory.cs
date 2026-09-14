@@ -29,7 +29,14 @@ public class MyErpDbContextFactory : IDesignTimeDbContextFactory<MyErpDbContext>
                 "`dotnet user-secrets set \"ConnectionStrings:DefaultConnection\" \"...\"`。");
 
         var optionsBuilder = new DbContextOptionsBuilder<MyErpDbContext>();
-        optionsBuilder.UseSqlServer(connectionString);
+        // 跟 DependencyInjection.cs 的正式執行路徑一樣加上重試，讓 `dotnet ef database update`
+        // 遇到 Azure SQL Database Serverless 喚醒中的暫時性錯誤時可以自動重試，不用手動重跑指令。
+        optionsBuilder.UseSqlServer(
+            connectionString,
+            sqlOptions => sqlOptions.EnableRetryOnFailure(
+                maxRetryCount: 5,
+                maxRetryDelay: TimeSpan.FromSeconds(30),
+                errorNumbersToAdd: null));
 
         return new MyErpDbContext(optionsBuilder.Options);
     }

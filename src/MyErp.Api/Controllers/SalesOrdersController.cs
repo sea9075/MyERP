@@ -1,6 +1,6 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MyErp.Api.Extensions;
 using MyErp.Application.DTOs;
 using MyErp.Application.Services;
 
@@ -30,15 +30,15 @@ public class SalesOrdersController(ISalesOrderService salesOrderService) : Contr
     [HttpPost]
     public async Task<ActionResult<SalesOrderDto>> Create([FromBody] CreateSalesOrderRequest request, CancellationToken ct)
     {
-        var currentUserId = GetCurrentUserId();
-        var created = await salesOrderService.CreateAsync(request, currentUserId, ct);
+        var created = await salesOrderService.CreateAsync(request, this.GetCurrentUserId(), this.GetCurrentUsername(), ct);
         return Ok(created);
     }
 
-    private int GetCurrentUserId()
+    /// <summary>作廢出貨單並把庫存加回去（ERP.md §8 Phase 2 項目 8）。加回庫存不會有負數疑慮。</summary>
+    [HttpPost("{id:int}/void")]
+    public async Task<ActionResult<SalesOrderDto>> Void(int id, CancellationToken ct)
     {
-        var idClaim = User.FindFirstValue(ClaimTypes.NameIdentifier)
-            ?? throw new InvalidOperationException("JWT 缺少使用者 Id (NameIdentifier claim)，這裡不應該發生。");
-        return int.Parse(idClaim);
+        var voided = await salesOrderService.VoidAsync(id, this.GetCurrentUserId(), this.GetCurrentUsername(), ct);
+        return Ok(voided);
     }
 }

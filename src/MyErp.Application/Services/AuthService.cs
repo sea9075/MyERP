@@ -21,8 +21,10 @@ public class AuthService(IUserRepository userRepository, IOptions<JwtOptions> jw
 
     public async Task<LoginResponse?> LoginAsync(LoginRequest request, CancellationToken ct = default)
     {
+        // UserRepository.GetByUsernameAsync 已經套用 Global Query Filter，已刪除(IsDeleted=true)
+        // 的帳號本來就查不到，這裡不用再另外檢查一次。
         var user = await userRepository.GetByUsernameAsync(request.Username, ct);
-        if (user is null || !user.IsActive)
+        if (user is null)
         {
             return null;
         }

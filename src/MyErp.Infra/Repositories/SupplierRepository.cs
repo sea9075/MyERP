@@ -6,19 +6,21 @@ namespace MyErp.Infra.Repositories;
 
 public class SupplierRepository(MyErpDbContext db) : ISupplierRepository
 {
-    public Task<List<Supplier>> GetAllAsync(bool includeInactive, CancellationToken ct = default)
+    public Task<List<Supplier>> GetAllAsync(bool includeDeleted, CancellationToken ct = default)
     {
         var query = db.Suppliers.AsNoTracking().AsQueryable();
-        if (!includeInactive)
+        if (includeDeleted)
         {
-            query = query.Where(s => s.IsActive);
+            query = query.IgnoreQueryFilters();
         }
         return query.OrderBy(s => s.Name).ToListAsync(ct);
     }
 
+    /// <summary>IgnoreQueryFilters()：用 Id 查詢不受刪除狀態影響。</summary>
     public Task<Supplier?> GetByIdAsync(int id, CancellationToken ct = default) =>
-        db.Suppliers.FirstOrDefaultAsync(s => s.Id == id, ct);
+        db.Suppliers.IgnoreQueryFilters().FirstOrDefaultAsync(s => s.Id == id, ct);
 
+    /// <summary>只確認「未刪除」的供應商存在（Global Query Filter 自動套用）。</summary>
     public Task<bool> ExistsAsync(int id, CancellationToken ct = default) =>
         db.Suppliers.AnyAsync(s => s.Id == id, ct);
 

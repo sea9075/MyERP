@@ -19,23 +19,30 @@ public static class SeedData
     public const string DefaultAdminUsername = "admin";
     public const string DefaultAdminPassword = "Admin@123456";
 
+    /// <summary>
+    /// 這個帳號是系統自動建立的，不是某個登入使用者手動建立的，所以 CreatedBy/UpdatedBy
+    /// 用 "system" 當標記，而不是隨便掛在某個真實 username 底下。
+    /// </summary>
+    public const string SystemUsername = "system";
+
     public static async Task SeedAsync(MyErpDbContext db, CancellationToken ct = default)
     {
-        var hasAnyUser = await db.Users.AnyAsync(ct);
+        var hasAnyUser = await db.Users.IgnoreQueryFilters().AnyAsync(ct);
         if (hasAnyUser)
         {
             return;
         }
 
-        db.Users.Add(new User
+        var admin = new User
         {
             Username = DefaultAdminUsername,
             PasswordHash = PasswordHasher.Hash(DefaultAdminPassword),
             DisplayName = "系統管理員",
             Role = UserRole.Admin,
-            IsActive = true,
-        });
+        };
+        admin.InitializeAudit(SystemUsername);
 
+        db.Users.Add(admin);
         await db.SaveChangesAsync(ct);
     }
 }

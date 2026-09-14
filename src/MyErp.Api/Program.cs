@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
+using MyErp.Api.Filters;
 using MyErp.Api.Middleware;
 using MyErp.Application;
 using MyErp.Application.Common;
@@ -51,7 +52,12 @@ builder.Services
 builder.Services.AddAuthorization();
 
 // ---- Controllers / Swagger ----
-builder.Services.AddControllers();
+builder.Services.AddScoped<ActivityLogActionFilter>();
+builder.Services.AddControllers(options =>
+{
+    // 全域套用：自動記錄「誰在什麼時候做了什麼」，見 ActivityLogActionFilter 的說明。
+    options.Filters.Add<ActivityLogActionFilter>();
+});
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {

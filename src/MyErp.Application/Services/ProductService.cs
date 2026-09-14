@@ -7,22 +7,22 @@ namespace MyErp.Application.Services;
 
 public interface IProductService
 {
-    Task<List<ProductDto>> SearchAsync(string? keyword, int? categoryId, bool? lowStock, CancellationToken ct = default);
+    Task<List<ProductDto>> SearchAsync(string? keyword, int? categoryId, bool? lowStock, bool includeDeleted, CancellationToken ct = default);
     Task<ProductDto> GetByIdAsync(int id, CancellationToken ct = default);
     Task<ProductDto> GetByBarcodeAsync(string barcode, CancellationToken ct = default);
-    Task<ProductDto> CreateAsync(CreateProductRequest request, CancellationToken ct = default);
-    Task<ProductDto> UpdateAsync(int id, UpdateProductRequest request, CancellationToken ct = default);
+    Task<ProductDto> CreateAsync(CreateProductRequest request, string currentUsername, CancellationToken ct = default);
+    Task<ProductDto> UpdateAsync(int id, UpdateProductRequest request, string currentUsername, CancellationToken ct = default);
 
-    /// <summary>ERP.md §6：DELETE /api/products/{id} 是軟刪除（IsActive=false）。</summary>
-    Task DeleteAsync(int id, CancellationToken ct = default);
+    /// <summary>ERP.md §6：DELETE /api/products/{id} 是軟刪除（IsDeleted=true）。</summary>
+    Task DeleteAsync(int id, string currentUsername, CancellationToken ct = default);
 }
 
 public class ProductService(IProductRepository productRepository, ISupplierRepository supplierRepository, IUnitOfWork unitOfWork)
     : IProductService
 {
-    public async Task<List<ProductDto>> SearchAsync(string? keyword, int? categoryId, bool? lowStock, CancellationToken ct = default)
+    public async Task<List<ProductDto>> SearchAsync(string? keyword, int? categoryId, bool? lowStock, bool includeDeleted, CancellationToken ct = default)
     {
-        var products = await productRepository.SearchAsync(keyword, categoryId, lowStock, ct);
+        var products = await productRepository.SearchAsync(keyword, categoryId, lowStock, includeDeleted, ct);
         return products.Select(ToDto).ToList();
     }
 
@@ -40,7 +40,7 @@ public class ProductService(IProductRepository productRepository, ISupplierRepos
         return ToDto(product);
     }
 
-    public async Task<ProductDto> CreateAsync(CreateProductRequest request, CancellationToken ct = default)
+    public async Task<ProductDto> CreateAsync(CreateProductRequest request, string currentUsername, CancellationToken ct = default)
     {
         await ValidateAsync(request, excludeId: null, ct);
 
@@ -55,20 +55,18 @@ public class ProductService(IProductRepository productRepository, ISupplierRepos
             SalePrice = request.SalePrice,
             SafetyStock = request.SafetyStock,
             SupplierId = request.SupplierId,
-            IsActive = true,
             // CurrentStock 刻意不開放在這裡直接設定：新商品一律從 0 開始，
-            // 之後只能透過進貨單／出貨單／（Phase 2）盤點調整來改變庫存，確保 InventoryTransaction 稽核軌跡完整。
+            // 之後只能透過進貨單／出貨單／盤點調整來改變庫存，確保 InventoryTransaction 稽核軌跡完整。
             CurrentStock = 0,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow,
         };
+        product.InitializeAudit(currentUsername);
 
         productRepository.Add(product);
         await unitOfWork.SaveChangesAsync(ct);
         return ToDto(product);
     }
 
-    public async Task<ProductDto> UpdateAsync(int id, UpdateProductRequest request, CancellationToken ct = default)
+    public async Task<ProductDto> UpdateAsync(int id, UpdateProductRequest request, string currentUsername, CancellationToken ct = default)
     {
         var product = await productRepository.GetByIdAsync(id, ct)
             ?? throw new BusinessRuleException($"找不到商品 (Id={id})。");
@@ -84,20 +82,19 @@ public class ProductService(IProductRepository productRepository, ISupplierRepos
         product.SalePrice = request.SalePrice;
         product.SafetyStock = request.SafetyStock;
         product.SupplierId = request.SupplierId;
-        product.IsActive = request.IsActive;
-        product.UpdatedAt = DateTime.UtcNow;
+        product.IsDeleted = request.IsDeleted;
+        product.TouchUpdated(currentUsername);
 
         await unitOfWork.SaveChangesAsync(ct);
         return ToDto(product);
     }
 
-    public async Task DeleteAsync(int id, CancellationToken ct = default)
+    public async Task DeleteAsync(int id, string currentUsername, CancellationToken ct = default)
     {
         var product = await productRepository.GetByIdAsync(id, ct)
             ?? throw new BusinessRuleException($"找不到商品 (Id={id})。");
 
-        product.IsActive = false;
-        product.UpdatedAt = DateTime.UtcNow;
+        product.SoftDelete(currentUsername);
         await unitOfWork.SaveChangesAsync(ct);
     }
 
@@ -134,6 +131,10 @@ public class ProductService(IProductRepository productRepository, ISupplierRepos
         CurrentStock = product.CurrentStock,
         SupplierId = product.SupplierId,
         SupplierName = product.Supplier?.Name,
-        IsActive = product.IsActive,
+        CreatedAt = product.CreatedAt,
+        UpdatedAt = product.UpdatedAt,
+        CreatedBy = product.CreatedBy,
+        UpdatedBy = product.UpdatedBy,
+        IsDeleted = product.IsDeleted,
     };
 }

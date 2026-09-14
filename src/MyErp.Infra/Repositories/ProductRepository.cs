@@ -6,14 +6,18 @@ namespace MyErp.Infra.Repositories;
 
 public class ProductRepository(MyErpDbContext db) : IProductRepository
 {
-    public async Task<List<Product>> SearchAsync(string? keyword, int? categoryId, bool? lowStock, CancellationToken ct = default)
+    public async Task<List<Product>> SearchAsync(string? keyword, int? categoryId, bool? lowStock, bool includeDeleted, CancellationToken ct = default)
     {
         var query = db.Products
             .AsNoTracking()
             .Include(p => p.Category)
             .Include(p => p.Supplier)
-            .Where(p => p.IsActive)
             .AsQueryable();
+
+        if (includeDeleted)
+        {
+            query = query.IgnoreQueryFilters();
+        }
 
         if (!string.IsNullOrWhiteSpace(keyword))
         {
@@ -36,13 +40,15 @@ public class ProductRepository(MyErpDbContext db) : IProductRepository
         return await query.OrderBy(p => p.Name).ToListAsync(ct);
     }
 
+    /// <summary>IgnoreQueryFilters()：用 Id 查詢不受刪除狀態影響（例如作廢舊單據時仍要找得到已刪除的商品）。</summary>
     public Task<Product?> GetByIdAsync(int id, CancellationToken ct = default) =>
-        db.Products.Include(p => p.Category).Include(p => p.Supplier)
+        db.Products.IgnoreQueryFilters().Include(p => p.Category).Include(p => p.Supplier)
             .FirstOrDefaultAsync(p => p.Id == id, ct);
 
+    /// <summary>條碼掃描查詢：只找「未刪除」的商品（Global Query Filter 自動套用），新交易不該掃到已刪除的商品。</summary>
     public Task<Product?> GetByBarcodeAsync(string barcode, CancellationToken ct = default) =>
         db.Products.Include(p => p.Category).Include(p => p.Supplier)
-            .FirstOrDefaultAsync(p => p.Barcode == barcode && p.IsActive, ct);
+            .FirstOrDefaultAsync(p => p.Barcode == barcode, ct);
 
     public Task<bool> SkuExistsAsync(string sku, int? excludeId = null, CancellationToken ct = default) =>
         db.Products.AnyAsync(p => p.Sku == sku && (excludeId == null || p.Id != excludeId), ct);

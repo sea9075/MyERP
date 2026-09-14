@@ -7,51 +7,57 @@ namespace MyErp.Application.Services;
 
 public interface ICategoryService
 {
-    Task<List<CategoryDto>> GetAllAsync(CancellationToken ct = default);
-    Task<CategoryDto> CreateAsync(CreateCategoryRequest request, CancellationToken ct = default);
-    Task<CategoryDto> UpdateAsync(int id, UpdateCategoryRequest request, CancellationToken ct = default);
-    Task DeleteAsync(int id, CancellationToken ct = default);
+    Task<List<CategoryDto>> GetAllAsync(bool includeDeleted, CancellationToken ct = default);
+    Task<CategoryDto> CreateAsync(CreateCategoryRequest request, string currentUsername, CancellationToken ct = default);
+    Task<CategoryDto> UpdateAsync(int id, UpdateCategoryRequest request, string currentUsername, CancellationToken ct = default);
+
+    /// <summary>軟刪除（IsDeleted=true）；刪除前檢查底下是否還有商品在用。</summary>
+    Task DeleteAsync(int id, string currentUsername, CancellationToken ct = default);
 }
 
 public class CategoryService(ICategoryRepository categoryRepository, IUnitOfWork unitOfWork) : ICategoryService
 {
-    public async Task<List<CategoryDto>> GetAllAsync(CancellationToken ct = default)
+    public async Task<List<CategoryDto>> GetAllAsync(bool includeDeleted, CancellationToken ct = default)
     {
-        var categories = await categoryRepository.GetAllAsync(ct);
+        var categories = await categoryRepository.GetAllAsync(includeDeleted, ct);
         return categories.Select(ToDto).ToList();
     }
 
-    public async Task<CategoryDto> CreateAsync(CreateCategoryRequest request, CancellationToken ct = default)
+    public async Task<CategoryDto> CreateAsync(CreateCategoryRequest request, string currentUsername, CancellationToken ct = default)
     {
         var category = new Category { Name = request.Name };
+        category.InitializeAudit(currentUsername);
+
         categoryRepository.Add(category);
         await unitOfWork.SaveChangesAsync(ct);
         return ToDto(category);
     }
 
-    public async Task<CategoryDto> UpdateAsync(int id, UpdateCategoryRequest request, CancellationToken ct = default)
+    public async Task<CategoryDto> UpdateAsync(int id, UpdateCategoryRequest request, string currentUsername, CancellationToken ct = default)
     {
         var category = await categoryRepository.GetByIdAsync(id, ct)
             ?? throw new BusinessRuleException($"找不到分類 (Id={id})。");
 
         category.Name = request.Name;
+        category.TouchUpdated(currentUsername);
+
         await unitOfWork.SaveChangesAsync(ct);
         return ToDto(category);
     }
 
-    public async Task DeleteAsync(int id, CancellationToken ct = default)
+    public async Task DeleteAsync(int id, string currentUsername, CancellationToken ct = default)
     {
         var category = await categoryRepository.GetByIdAsync(id, ct)
             ?? throw new BusinessRuleException($"找不到分類 (Id={id})。");
 
-        // Category 沒有 IsActive 欄位（見 ERP.md §5.1），所以是實體刪除；
-        // 先檢查是否還有商品掛在這個分類下，避免刪除後商品的 CategoryId 變成孤兒資料。
+        // 只算「未刪除」的商品（Product 的 Global Query Filter 自動套用），
+        // 如果底下的商品都已經被刪除了，就不會擋這次分類刪除。
         if (await categoryRepository.HasProductsAsync(id, ct))
         {
             throw new BusinessRuleException("此分類仍有商品使用中，請先將商品改分類或停用後再刪除。");
         }
 
-        categoryRepository.Remove(category);
+        category.SoftDelete(currentUsername);
         await unitOfWork.SaveChangesAsync(ct);
     }
 
@@ -59,5 +65,10 @@ public class CategoryService(ICategoryRepository categoryRepository, IUnitOfWork
     {
         Id = category.Id,
         Name = category.Name,
+        CreatedAt = category.CreatedAt,
+        UpdatedAt = category.UpdatedAt,
+        CreatedBy = category.CreatedBy,
+        UpdatedBy = category.UpdatedBy,
+        IsDeleted = category.IsDeleted,
     };
 }

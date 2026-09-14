@@ -1,6 +1,6 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MyErp.Api.Extensions;
 using MyErp.Application.DTOs;
 using MyErp.Application.Services;
 
@@ -27,15 +27,18 @@ public class PurchaseOrdersController(IPurchaseOrderService purchaseOrderService
     [HttpPost]
     public async Task<ActionResult<PurchaseOrderDto>> Create([FromBody] CreatePurchaseOrderRequest request, CancellationToken ct)
     {
-        var currentUserId = GetCurrentUserId();
-        var created = await purchaseOrderService.CreateAsync(request, currentUserId, ct);
+        var created = await purchaseOrderService.CreateAsync(request, this.GetCurrentUserId(), this.GetCurrentUsername(), ct);
         return Ok(created);
     }
 
-    private int GetCurrentUserId()
+    /// <summary>
+    /// 作廢進貨單並把庫存扣回去（ERP.md §8 Phase 2 項目 8）。
+    /// 如果扣回去會讓庫存變負的（貨已經被後續出貨單賣掉一部分），回 400。
+    /// </summary>
+    [HttpPost("{id:int}/void")]
+    public async Task<ActionResult<PurchaseOrderDto>> Void(int id, CancellationToken ct)
     {
-        var idClaim = User.FindFirstValue(ClaimTypes.NameIdentifier)
-            ?? throw new InvalidOperationException("JWT 缺少使用者 Id (NameIdentifier claim)，這裡不應該發生。");
-        return int.Parse(idClaim);
+        var voided = await purchaseOrderService.VoidAsync(id, this.GetCurrentUserId(), this.GetCurrentUsername(), ct);
+        return Ok(voided);
     }
 }

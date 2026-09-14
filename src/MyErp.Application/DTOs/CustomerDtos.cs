@@ -2,10 +2,12 @@ using System.ComponentModel.DataAnnotations;
 
 namespace MyErp.Application.DTOs;
 
-public class CategoryDto
+public class CustomerDto
 {
     public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
+    public string? Phone { get; set; }
+    public string? Note { get; set; }
 
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
@@ -14,14 +16,18 @@ public class CategoryDto
     public bool IsDeleted { get; set; }
 }
 
-public class CreateCategoryRequest
+public class CreateCustomerRequest
 {
-    [Required, StringLength(50)]
+    [Required, StringLength(100)]
     public string Name { get; set; } = string.Empty;
+
+    [StringLength(30)]
+    public string? Phone { get; set; }
+
+    [StringLength(200)]
+    public string? Note { get; set; }
 }
 
-public class UpdateCategoryRequest
+public class UpdateCustomerRequest : CreateCustomerRequest
 {
-    [Required, StringLength(50)]
-    public string Name { get; set; } = string.Empty;
 }

@@ -22,6 +22,11 @@ public class PurchaseOrderDto
     public string? Note { get; set; }
     public decimal TotalAmount { get; set; }
     public List<PurchaseOrderItemDto> Items { get; set; } = [];
+
+    public DateTime CreatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
+    public string CreatedBy { get; set; } = string.Empty;
+    public string UpdatedBy { get; set; } = string.Empty;
 }
 
 public class CreatePurchaseOrderItemRequest

@@ -14,8 +14,17 @@ public interface ISalesOrderService
     /// <summary>
     /// 建立出貨單並自動扣庫存（ERP.md §4.4）。庫存不足時整張單都不會成立（拋出
     /// BusinessRuleException，Controller 轉成 400），符合「預設不允許負庫存」的規則。
+    /// currentUserId 給 InventoryTransaction.CreatedByUserId（那張表維持原本的 int 外鍵設計，
+    /// 沒有套用這次的稽核欄位改動）；currentUsername 給 SalesOrder 本身新增的 CreatedBy/UpdatedBy。
     /// </summary>
-    Task<SalesOrderDto> CreateAsync(CreateSalesOrderRequest request, int currentUserId, CancellationToken ct = default);
+    Task<SalesOrderDto> CreateAsync(CreateSalesOrderRequest request, int currentUserId, string currentUsername, CancellationToken ct = default);
+
+    /// <summary>
+    /// 作廢出貨單並把當初扣掉的庫存加回去（ERP.md §8 Phase 2 項目 8）。
+    /// 加回庫存不會有變負數的疑慮，所以不像 PurchaseOrder 作廢那樣需要先檢查庫存夠不夠。
+    /// 作廢本身也算一次異動，會順便更新 UpdatedAt/UpdatedBy。
+    /// </summary>
+    Task<SalesOrderDto> VoidAsync(int id, int currentUserId, string currentUsername, CancellationToken ct = default);
 }
 
 public class SalesOrderService(
@@ -38,7 +47,7 @@ public class SalesOrderService(
         return ToDto(order);
     }
 
-    public async Task<SalesOrderDto> CreateAsync(CreateSalesOrderRequest request, int currentUserId, CancellationToken ct = default)
+    public async Task<SalesOrderDto> CreateAsync(CreateSalesOrderRequest request, int currentUserId, string currentUsername, CancellationToken ct = default)
     {
         if (request.CustomerId is { } customerId && !await customerRepository.ExistsAsync(customerId, ct))
         {
@@ -51,9 +60,8 @@ public class SalesOrderService(
             OrderDate = request.OrderDate ?? DateTime.UtcNow,
             Status = OrderStatus.Normal,
             Note = request.Note,
-            CreatedByUserId = currentUserId,
-            CreatedAt = DateTime.UtcNow,
         };
+        order.InitializeAudit(currentUsername);
 
         var stockAfterByProductId = new Dictionary<int, int>();
 
@@ -101,7 +109,7 @@ public class SalesOrderService(
                 });
 
                 product.CurrentStock -= itemRequest.Quantity;
-                product.UpdatedAt = DateTime.UtcNow;
+                product.TouchUpdated(currentUsername);
                 stockAfterByProductId[product.Id] = product.CurrentStock;
             }
 
@@ -131,6 +139,55 @@ public class SalesOrderService(
         return ToDto(saved);
     }
 
+    public async Task<SalesOrderDto> VoidAsync(int id, int currentUserId, string currentUsername, CancellationToken ct = default)
+    {
+        var order = await salesOrderRepository.GetByIdAsync(id, ct)
+            ?? throw new BusinessRuleException($"找不到出貨單 (Id={id})。");
+
+        if (order.Status == OrderStatus.Voided)
+        {
+            throw new BusinessRuleException($"出貨單 {order.OrderNo} 已經作廢過了，不能重複作廢。");
+        }
+
+        // 同一個商品可能出現在好幾筆明細，先加總，一次加回庫存。
+        var voidQuantityByProductId = order.Items
+            .GroupBy(i => i.ProductId)
+            .ToDictionary(g => g.Key, g => g.Sum(i => i.Quantity));
+
+        var stockAfterByProductId = new Dictionary<int, int>();
+        foreach (var (productId, voidQuantity) in voidQuantityByProductId)
+        {
+            var product = await productRepository.GetByIdAsync(productId, ct)
+                ?? throw new BusinessRuleException($"找不到商品 (Id={productId})。");
+
+            product.CurrentStock += voidQuantity;
+            product.TouchUpdated(currentUsername);
+            stockAfterByProductId[productId] = product.CurrentStock;
+        }
+
+        order.Status = OrderStatus.Voided;
+        order.TouchUpdated(currentUsername);
+
+        foreach (var (productId, voidQuantity) in voidQuantityByProductId)
+        {
+            inventoryTransactionRepository.Add(new InventoryTransaction
+            {
+                ProductId = productId,
+                ChangeType = InventoryChangeType.SaleVoid,
+                QuantityChange = voidQuantity,
+                StockAfter = stockAfterByProductId[productId],
+                RefTable = nameof(SalesOrder),
+                RefId = order.Id,
+                CreatedByUserId = currentUserId,
+                CreatedAt = DateTime.UtcNow,
+            });
+        }
+
+        await unitOfWork.SaveChangesAsync(ct);
+
+        return ToDto(order);
+    }
+
     private async Task<string> GenerateOrderNoAsync(string prefix, CancellationToken ct)
     {
         var datePrefix = DateTime.UtcNow.ToString("yyyyMMdd");
@@ -156,5 +213,9 @@ public class SalesOrderService(
             UnitPrice = i.UnitPrice,
             Subtotal = i.Subtotal,
         }).ToList(),
+        CreatedAt = order.CreatedAt,
+        UpdatedAt = order.UpdatedAt,
+        CreatedBy = order.CreatedBy,
+        UpdatedBy = order.UpdatedBy,
     };
 }
