@@ -1,0 +1,154 @@
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang TC', 'Microsoft JhengHei', Roboto, Helvetica, Arial,
+    sans-serif;
+}
+
+.page-container {
+  padding: 24px;
+}
+
+.page-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.page-toolbar-filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/*
+ * 三色操作按鈕規則（專案硬性規定，不可改）：
+ * - 新增／建立 → 綠色系（.btn-add）
+ * - 修改／編輯 → 橘色系（.btn-edit）
+ * - 刪除／作廢 → 紅色系（.btn-delete）
+ *
+ * antd 的 Button 預設只有 primary（藍）跟 danger（紅）兩種語意色，橘色/綠色沒有對應的
+ * component token 可以直接用 ConfigProvider 全域設定（一設定就會讓「所有」primary 按鈕
+ * 變色，沒辦法讓同一個 type="primary" 按鈕依用途分成三色）。因此改用「固定色碼 + CSS 類別」
+ * 直接覆蓋 antd 產生的樣式，並用 !important 確保蓋過 antd 自己的 hover/active 狀態色。
+ * 色階選用 Tailwind 的 600/700/800 色階（對比、可讀性都經過驗證），三種顏色彼此濃淡一致。
+ */
+.btn-add,
+.btn-add:hover,
+.btn-add:focus,
+.btn-add:active {
+  color: #fff !important;
+}
+.btn-add {
+  background: #16a34a !important;
+  border-color: #16a34a !important;
+}
+.btn-add:hover,
+.btn-add:focus {
+  background: #15803d !important;
+  border-color: #15803d !important;
+}
+.btn-add:active {
+  background: #166534 !important;
+  border-color: #166534 !important;
+}
+.btn-add[disabled],
+.btn-add[disabled]:hover {
+  background: #86efac !important;
+  border-color: #86efac !important;
+  color: #f0fdf4 !important;
+}
+
+.btn-edit,
+.btn-edit:hover,
+.btn-edit:focus,
+.btn-edit:active {
+  color: #fff !important;
+}
+.btn-edit {
+  background: #f97316 !important;
+  border-color: #f97316 !important;
+}
+.btn-edit:hover,
+.btn-edit:focus {
+  background: #ea580c !important;
+  border-color: #ea580c !important;
+}
+.btn-edit:active {
+  background: #c2410c !important;
+  border-color: #c2410c !important;
+}
+.btn-edit[disabled],
+.btn-edit[disabled]:hover {
+  background: #fdba74 !important;
+  border-color: #fdba74 !important;
+  color: #fff7ed !important;
+}
+
+.btn-delete,
+.btn-delete:hover,
+.btn-delete:focus,
+.btn-delete:active {
+  color: #fff !important;
+}
+.btn-delete {
+  background: #dc2626 !important;
+  border-color: #dc2626 !important;
+}
+.btn-delete:hover,
+.btn-delete:focus {
+  background: #b91c1c !important;
+  border-color: #b91c1c !important;
+}
+.btn-delete:active {
+  background: #991b1b !important;
+  border-color: #991b1b !important;
+}
+.btn-delete[disabled],
+.btn-delete[disabled]:hover {
+  background: #fca5a5 !important;
+  border-color: #fca5a5 !important;
+  color: #fef2f2 !important;
+}
+
+/* 文字型（type="text"）版本：用在表格操作欄，底色淡、只有文字/圖示上色 */
+.btn-add-text {
+  color: #16a34a !important;
+}
+.btn-add-text:hover,
+.btn-add-text:focus {
+  color: #15803d !important;
+  background: #f0fdf4 !important;
+}
+
+.btn-edit-text {
+  color: #f97316 !important;
+}
+.btn-edit-text:hover,
+.btn-edit-text:focus {
+  color: #ea580c !important;
+  background: #fff7ed !important;
+}
+
+.btn-delete-text {
+  color: #dc2626 !important;
+}
+.btn-delete-text:hover,
+.btn-delete-text:focus {
+  color: #b91c1c !important;
+  background: #fef2f2 !important;
+}
+
+.low-stock-row {
+  background: #fff1f0;
+}
