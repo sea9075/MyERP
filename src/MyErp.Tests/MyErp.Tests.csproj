@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      刻意選 xunit 2.9.3（雖然官方標示為 legacy）+ xunit.runner.visualstudio 3.1.5，
+      而不是還在快速變動、有不少套件仍是 -pre 版本的 xunit.v3：對這個規模的專案，
+      穩定、文件齊全比用最新主版本更重要。之後如果想升級到 v3，屆時再討論。
+    -->
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.10.0" />
+    <PackageReference Include="Moq" Version="4.20.72" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MyErp.Domain\MyErp.Domain.csproj" />
+    <ProjectReference Include="..\MyErp.Application\MyErp.Application.csproj" />
+  </ItemGroup>
+
+</Project>

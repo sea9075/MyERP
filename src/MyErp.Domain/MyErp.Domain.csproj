@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <!--
+    Domain 層刻意不參考任何套件（EF Core、ASP.NET Core 等都不行）。
+    這裡只放「這個系統本身的業務概念」：Entity 與 Enum，
+    不該知道資料要怎麼存、API 要怎麼呼叫。
+  -->
+
+</Project>

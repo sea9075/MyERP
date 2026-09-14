@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 用來簽發 JWT（AuthService 建立登入權杖時使用）。 -->
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.22.0" />
+    <!-- AuthService 用 IOptions&lt;JwtOptions&gt; 讀取 appsettings 裡的 Jwt 設定。 -->
+    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.12" />
+    <!-- 提供 IServiceCollection，讓 DependencyInjection.cs 的 AddMyErpApplication() 擴充方法可以用。 -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MyErp.Domain\MyErp.Domain.csproj" />
+  </ItemGroup>
+
+  <!--
+    刻意不參考 EF Core：Application 層只透過 Abstractions/ 底下定義的
+    IRepository / IUnitOfWork 介面存取資料，實際存取方式（EF Core + Azure SQL）
+    交給 MyErp.Infra 實作，這樣未來要換資料存取技術也不用動這一層。
+  -->
+
+</Project>
