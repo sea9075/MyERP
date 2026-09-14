@@ -5,8 +5,12 @@ node_modules
 dist
 dist-ssr
 
-# 本機環境覆寫檔（如果之後有人加 .env.local 放自己的機密設定）
-*.local
+# 環境設定檔：這兩個目前雖然只有 API 網址、沒有機密資訊，但慣例上還是不進版控，
+# 避免以後有人不小心把真正的機密（例如正式環境的 API 網址背後接的服務金鑰）也一起 commit 上去。
+# 內容範本見 README.md「開發環境設定」章節，或直接跟 Claude 要一份。
+.env
+.env.*
+!.env.example
 
 # 編輯器/系統
 .vscode/*
