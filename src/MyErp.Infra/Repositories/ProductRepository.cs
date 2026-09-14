@@ -21,10 +21,15 @@ public class ProductRepository(MyErpDbContext db) : IProductRepository
 
         if (!string.IsNullOrWhiteSpace(keyword))
         {
+            // .Contains() 底層會轉成參數化的 SQL LIKE（EF Core 自動處理，不會有 SQL Injection 風險），
+            // 但使用者輸入的關鍵字如果剛好含有 %、_、[ 這幾個 LIKE 萬用字元，仍會被 SQL Server
+            // 當成萬用字元解讀（例如搜尋 "50%" 會變成比對任意字元），屬於行為上的意外而非資安漏洞，
+            // 這裡先跳脫成字面值再查，讓「搜尋什麼就比對什麼」。
+            var escapedKeyword = EscapeLikeWildcards(keyword);
             query = query.Where(p =>
-                p.Name.Contains(keyword) ||
-                p.Sku.Contains(keyword) ||
-                (p.Barcode != null && p.Barcode.Contains(keyword)));
+                EF.Functions.Like(p.Name, $"%{escapedKeyword}%") ||
+                EF.Functions.Like(p.Sku, $"%{escapedKeyword}%") ||
+                (p.Barcode != null && EF.Functions.Like(p.Barcode, $"%{escapedKeyword}%")));
         }
 
         if (categoryId.HasValue)
@@ -57,4 +62,12 @@ public class ProductRepository(MyErpDbContext db) : IProductRepository
         db.Products.AnyAsync(p => p.Barcode == barcode && (excludeId == null || p.Id != excludeId), ct);
 
     public void Add(Product product) => db.Products.Add(product);
+
+    /// <summary>
+    /// 把 SQL Server LIKE 語法裡的萬用字元（%、_、[）都跳脫成字面值，這樣使用者搜尋的關鍵字
+    /// 不管內容是什麼，都只會被當成「純文字比對」，不會被解讀成萬用字元或字元範圍。
+    /// 一定要先跳脫 [ 再跳脫 %、_，不然後面兩步驟插入的中括號會被第一步驟誤判成要跳脫的對象。
+    /// </summary>
+    private static string EscapeLikeWildcards(string value) =>
+        value.Replace("[", "[[]").Replace("%", "[%]").Replace("_", "[_]");
 }

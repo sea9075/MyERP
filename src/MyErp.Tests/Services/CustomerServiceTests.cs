@@ -68,6 +68,51 @@ public class CustomerServiceTests
     }
 
     [Fact]
+    public async Task CreateAsync_應該修剪名稱電話備註頭尾空白()
+    {
+        var request = new CreateCustomerRequest { Name = "  新客戶  ", Phone = " 0987654321 ", Note = "  備註  " };
+
+        Customer? added = null;
+        _customerRepository.Setup(r => r.Add(It.IsAny<Customer>())).Callback<Customer>(c => added = c);
+
+        var result = await _sut.CreateAsync(request, currentUsername: "alice");
+
+        _customerRepository.Verify(r => r.NameExistsAsync("新客戶", null, It.IsAny<CancellationToken>()), Times.Once);
+        Assert.Equal("新客戶", added!.Name);
+        Assert.Equal("0987654321", added.Phone);
+        Assert.Equal("備註", added.Note);
+        Assert.Equal("新客戶", result.Name);
+    }
+
+    [Fact]
+    public async Task CreateAsync_名稱重複時應該拋出BusinessRuleException_且不新增()
+    {
+        _customerRepository.Setup(r => r.NameExistsAsync("客戶A", null, It.IsAny<CancellationToken>())).ReturnsAsync(true);
+
+        var request = new CreateCustomerRequest { Name = "客戶A" };
+
+        await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.CreateAsync(request, currentUsername: "alice"));
+
+        _customerRepository.Verify(r => r.Add(It.IsAny<Customer>()), Times.Never);
+        _unitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_名稱重複時應該拋出BusinessRuleException_且排除自己()
+    {
+        var customer = new Customer { Id = 1, Name = "舊名稱" };
+        _customerRepository.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(customer);
+        _customerRepository.Setup(r => r.NameExistsAsync("客戶B", 1, It.IsAny<CancellationToken>())).ReturnsAsync(true);
+
+        var request = new UpdateCustomerRequest { Name = "客戶B" };
+
+        await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.UpdateAsync(1, request, currentUsername: "alice"));
+
+        Assert.Equal("舊名稱", customer.Name);
+        _unitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task UpdateAsync_客戶不存在時應該拋出BusinessRuleException()
     {
         _customerRepository.Setup(r => r.GetByIdAsync(999, It.IsAny<CancellationToken>())).ReturnsAsync((Customer?)null);

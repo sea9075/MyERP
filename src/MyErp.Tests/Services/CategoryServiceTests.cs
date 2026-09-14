@@ -38,6 +38,52 @@ public class CategoryServiceTests
     }
 
     [Fact]
+    public async Task CreateAsync_應該修剪名稱頭尾空白再查重與存檔()
+    {
+        var request = new CreateCategoryRequest { Name = "  飲料  " };
+
+        Category? added = null;
+        _categoryRepository.Setup(r => r.Add(It.IsAny<Category>())).Callback<Category>(c => added = c);
+
+        var result = await _sut.CreateAsync(request, currentUsername: "alice");
+
+        // 查重比對跟最後存進去的名稱都應該是修剪過的版本，不會帶頭尾空白。
+        _categoryRepository.Verify(r => r.NameExistsAsync("飲料", null, It.IsAny<CancellationToken>()), Times.Once);
+        Assert.Equal("飲料", added!.Name);
+        Assert.Equal("飲料", result.Name);
+    }
+
+    [Fact]
+    public async Task CreateAsync_名稱重複時應該拋出BusinessRuleException_且不新增()
+    {
+        _categoryRepository.Setup(r => r.NameExistsAsync("飲料", null, It.IsAny<CancellationToken>())).ReturnsAsync(true);
+
+        var request = new CreateCategoryRequest { Name = "飲料" };
+
+        await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.CreateAsync(request, currentUsername: "alice"));
+
+        _categoryRepository.Verify(r => r.Add(It.IsAny<Category>()), Times.Never);
+        _unitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_名稱重複時應該拋出BusinessRuleException_且排除自己()
+    {
+        var category = new Category { Id = 1, Name = "舊名稱" };
+        _categoryRepository.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(category);
+        _categoryRepository.Setup(r => r.NameExistsAsync("飲料", 1, It.IsAny<CancellationToken>())).ReturnsAsync(true);
+
+        var request = new UpdateCategoryRequest { Name = "飲料" };
+
+        await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.UpdateAsync(1, request, currentUsername: "alice"));
+
+        // NameExistsAsync 有帶 excludeId=1，代表更新時允許沿用自己原本的名稱，不會被自己擋自己。
+        _categoryRepository.Verify(r => r.NameExistsAsync("飲料", 1, It.IsAny<CancellationToken>()), Times.Once);
+        Assert.Equal("舊名稱", category.Name);
+        _unitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
     public async Task DeleteAsync_底下還有未刪除商品時應該拋出BusinessRuleException_且不軟刪除()
     {
         var category = new Category { Id = 1, Name = "飲料" };

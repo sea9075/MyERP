@@ -25,13 +25,19 @@ public class SupplierService(ISupplierRepository supplierRepository, IUnitOfWork
 
     public async Task<SupplierDto> CreateAsync(CreateSupplierRequest request, string currentUsername, CancellationToken ct = default)
     {
+        var name = request.Name.TrimRequired();
+        if (await supplierRepository.NameExistsAsync(name, excludeId: null, ct))
+        {
+            throw new BusinessRuleException($"供應商名稱 '{name}' 已經存在。");
+        }
+
         var supplier = new Supplier
         {
-            Name = request.Name,
-            ContactPerson = request.ContactPerson,
-            Phone = request.Phone,
-            Address = request.Address,
-            Note = request.Note,
+            Name = name,
+            ContactPerson = request.ContactPerson.TrimOrNull(),
+            Phone = request.Phone.TrimOrNull(),
+            Address = request.Address.TrimOrNull(),
+            Note = request.Note.TrimOrNull(),
         };
         supplier.InitializeAudit(currentUsername);
 
@@ -45,11 +51,17 @@ public class SupplierService(ISupplierRepository supplierRepository, IUnitOfWork
         var supplier = await supplierRepository.GetByIdAsync(id, ct)
             ?? throw new BusinessRuleException($"找不到供應商 (Id={id})。");
 
-        supplier.Name = request.Name;
-        supplier.ContactPerson = request.ContactPerson;
-        supplier.Phone = request.Phone;
-        supplier.Address = request.Address;
-        supplier.Note = request.Note;
+        var name = request.Name.TrimRequired();
+        if (await supplierRepository.NameExistsAsync(name, excludeId: id, ct))
+        {
+            throw new BusinessRuleException($"供應商名稱 '{name}' 已經存在。");
+        }
+
+        supplier.Name = name;
+        supplier.ContactPerson = request.ContactPerson.TrimOrNull();
+        supplier.Phone = request.Phone.TrimOrNull();
+        supplier.Address = request.Address.TrimOrNull();
+        supplier.Note = request.Note.TrimOrNull();
         supplier.IsDeleted = request.IsDeleted;
         supplier.TouchUpdated(currentUsername);
 

@@ -34,11 +34,17 @@ public class CustomerService(ICustomerRepository customerRepository, IUnitOfWork
 
     public async Task<CustomerDto> CreateAsync(CreateCustomerRequest request, string currentUsername, CancellationToken ct = default)
     {
+        var name = request.Name.TrimRequired();
+        if (await customerRepository.NameExistsAsync(name, excludeId: null, ct))
+        {
+            throw new BusinessRuleException($"客戶名稱 '{name}' 已經存在。");
+        }
+
         var customer = new Customer
         {
-            Name = request.Name,
-            Phone = request.Phone,
-            Note = request.Note,
+            Name = name,
+            Phone = request.Phone.TrimOrNull(),
+            Note = request.Note.TrimOrNull(),
         };
         customer.InitializeAudit(currentUsername);
 
@@ -52,9 +58,15 @@ public class CustomerService(ICustomerRepository customerRepository, IUnitOfWork
         var customer = await customerRepository.GetByIdAsync(id, ct)
             ?? throw new BusinessRuleException($"找不到客戶 (Id={id})。");
 
-        customer.Name = request.Name;
-        customer.Phone = request.Phone;
-        customer.Note = request.Note;
+        var name = request.Name.TrimRequired();
+        if (await customerRepository.NameExistsAsync(name, excludeId: id, ct))
+        {
+            throw new BusinessRuleException($"客戶名稱 '{name}' 已經存在。");
+        }
+
+        customer.Name = name;
+        customer.Phone = request.Phone.TrimOrNull();
+        customer.Note = request.Note.TrimOrNull();
         customer.TouchUpdated(currentUsername);
 
         await unitOfWork.SaveChangesAsync(ct);

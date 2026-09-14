@@ -28,5 +28,9 @@ public class CustomerRepository(MyErpDbContext db) : ICustomerRepository
     public Task<bool> HasSalesOrdersAsync(int customerId, CancellationToken ct = default) =>
         db.SalesOrders.AnyAsync(o => o.CustomerId == customerId, ct);
 
+    /// <summary>不加 IgnoreQueryFilters()：只跟「未刪除」的客戶比對，已軟刪除的名稱可以被重複使用。</summary>
+    public Task<bool> NameExistsAsync(string name, int? excludeId = null, CancellationToken ct = default) =>
+        db.Customers.AnyAsync(c => c.Name == name && (excludeId == null || c.Id != excludeId), ct);
+
     public void Add(Customer customer) => db.Customers.Add(customer);
 }

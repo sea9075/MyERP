@@ -46,8 +46,9 @@ public class ProductService(IProductRepository productRepository, ISupplierRepos
 
         var product = new Product
         {
+            // ValidateAsync 已經先把 Sku/Barcode/Name/Unit 修剪過頭尾空白，這裡直接用即可。
             Sku = request.Sku,
-            Barcode = string.IsNullOrWhiteSpace(request.Barcode) ? null : request.Barcode,
+            Barcode = request.Barcode,
             Name = request.Name,
             CategoryId = request.CategoryId,
             Unit = request.Unit,
@@ -74,7 +75,7 @@ public class ProductService(IProductRepository productRepository, ISupplierRepos
         await ValidateAsync(request, excludeId: id, ct);
 
         product.Sku = request.Sku;
-        product.Barcode = string.IsNullOrWhiteSpace(request.Barcode) ? null : request.Barcode;
+        product.Barcode = request.Barcode;
         product.Name = request.Name;
         product.CategoryId = request.CategoryId;
         product.Unit = request.Unit;
@@ -100,12 +101,19 @@ public class ProductService(IProductRepository productRepository, ISupplierRepos
 
     private async Task ValidateAsync(CreateProductRequest request, int? excludeId, CancellationToken ct)
     {
+        // 先把使用者輸入的字串欄位都修剪過（頭尾空白不算數），後面的查重比對、entity 賦值都直接用
+        // 已修剪過的版本，避免 " ABC" 跟 "ABC" 被當成不同的 SKU，也避免資料庫存進帶空白的髒資料。
+        request.Sku = request.Sku.TrimRequired();
+        request.Name = request.Name.TrimRequired();
+        request.Unit = request.Unit.TrimRequired();
+        request.Barcode = request.Barcode.TrimOrNull();
+
         if (await productRepository.SkuExistsAsync(request.Sku, excludeId, ct))
         {
             throw new BusinessRuleException($"商品編號 (SKU) '{request.Sku}' 已經存在。");
         }
 
-        if (!string.IsNullOrWhiteSpace(request.Barcode) && await productRepository.BarcodeExistsAsync(request.Barcode, excludeId, ct))
+        if (request.Barcode != null && await productRepository.BarcodeExistsAsync(request.Barcode, excludeId, ct))
         {
             throw new BusinessRuleException($"條碼 '{request.Barcode}' 已經被其他商品使用。");
         }

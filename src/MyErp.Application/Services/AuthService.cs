@@ -23,7 +23,9 @@ public class AuthService(IUserRepository userRepository, IOptions<JwtOptions> jw
     {
         // UserRepository.GetByUsernameAsync 已經套用 Global Query Filter，已刪除(IsDeleted=true)
         // 的帳號本來就查不到，這裡不用再另外檢查一次。
-        var user = await userRepository.GetByUsernameAsync(request.Username, ct);
+        // 帳號修剪頭尾空白（使用者可能不小心打成 "admin "）；密碼刻意不修剪，因為密碼本身允許
+        // 包含空白字元，修剪反而會讓使用者原本設定的密碼變得驗證不過。
+        var user = await userRepository.GetByUsernameAsync(request.Username.TrimRequired(), ct);
         if (user is null)
         {
             return null;

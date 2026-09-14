@@ -25,7 +25,13 @@ public class CategoryService(ICategoryRepository categoryRepository, IUnitOfWork
 
     public async Task<CategoryDto> CreateAsync(CreateCategoryRequest request, string currentUsername, CancellationToken ct = default)
     {
-        var category = new Category { Name = request.Name };
+        var name = request.Name.TrimRequired();
+        if (await categoryRepository.NameExistsAsync(name, excludeId: null, ct))
+        {
+            throw new BusinessRuleException($"分類名稱 '{name}' 已經存在。");
+        }
+
+        var category = new Category { Name = name };
         category.InitializeAudit(currentUsername);
 
         categoryRepository.Add(category);
@@ -38,7 +44,13 @@ public class CategoryService(ICategoryRepository categoryRepository, IUnitOfWork
         var category = await categoryRepository.GetByIdAsync(id, ct)
             ?? throw new BusinessRuleException($"找不到分類 (Id={id})。");
 
-        category.Name = request.Name;
+        var name = request.Name.TrimRequired();
+        if (await categoryRepository.NameExistsAsync(name, excludeId: id, ct))
+        {
+            throw new BusinessRuleException($"分類名稱 '{name}' 已經存在。");
+        }
+
+        category.Name = name;
         category.TouchUpdated(currentUsername);
 
         await unitOfWork.SaveChangesAsync(ct);

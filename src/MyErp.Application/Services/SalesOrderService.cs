@@ -59,7 +59,7 @@ public class SalesOrderService(
             CustomerId = request.CustomerId,
             OrderDate = request.OrderDate ?? DateTime.UtcNow,
             Status = OrderStatus.Normal,
-            Note = request.Note,
+            Note = request.Note.TrimOrNull(),
         };
         order.InitializeAudit(currentUsername);
 

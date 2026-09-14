@@ -24,5 +24,9 @@ public class SupplierRepository(MyErpDbContext db) : ISupplierRepository
     public Task<bool> ExistsAsync(int id, CancellationToken ct = default) =>
         db.Suppliers.AnyAsync(s => s.Id == id, ct);
 
+    /// <summary>不加 IgnoreQueryFilters()：只跟「未刪除」的供應商比對，已軟刪除的名稱可以被重複使用。</summary>
+    public Task<bool> NameExistsAsync(string name, int? excludeId = null, CancellationToken ct = default) =>
+        db.Suppliers.AnyAsync(s => s.Name == name && (excludeId == null || s.Id != excludeId), ct);
+
     public void Add(Supplier supplier) => db.Suppliers.Add(supplier);
 }

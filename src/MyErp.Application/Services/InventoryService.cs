@@ -87,7 +87,7 @@ public class InventoryService(
             StockAfter = newStock,
             RefTable = "Manual",
             RefId = null,
-            Reason = request.Reason,
+            Reason = request.Reason.TrimRequired(),
             CreatedByUserId = currentUserId,
             CreatedAt = DateTime.UtcNow,
         });

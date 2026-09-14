@@ -19,6 +19,12 @@ public interface ICategoryRepository
     /// <summary>只算「未刪除」的商品（Product 的 Global Query Filter 自動套用）。</summary>
     Task<bool> HasProductsAsync(int categoryId, CancellationToken ct = default);
 
+    /// <summary>
+    /// 檢查名稱是否已經被其他「未刪除」分類使用（Global Query Filter 自動套用，
+    /// 已軟刪除的分類不會擋新分類使用同樣的名稱）。excludeId 用在更新時排除自己。
+    /// </summary>
+    Task<bool> NameExistsAsync(string name, int? excludeId = null, CancellationToken ct = default);
+
     void Add(Category category);
 }
 
@@ -27,6 +33,10 @@ public interface ISupplierRepository
     Task<List<Supplier>> GetAllAsync(bool includeDeleted, CancellationToken ct = default);
     Task<Supplier?> GetByIdAsync(int id, CancellationToken ct = default);
     Task<bool> ExistsAsync(int id, CancellationToken ct = default);
+
+    /// <summary>檢查名稱是否已經被其他「未刪除」供應商使用。excludeId 用在更新時排除自己。</summary>
+    Task<bool> NameExistsAsync(string name, int? excludeId = null, CancellationToken ct = default);
+
     void Add(Supplier supplier);
 }
 
@@ -38,6 +48,9 @@ public interface ICustomerRepository
 
     /// <summary>SalesOrder 沒有套用軟刪除／Global Query Filter，這裡會查到「所有」出貨單（含已作廢的）。</summary>
     Task<bool> HasSalesOrdersAsync(int customerId, CancellationToken ct = default);
+
+    /// <summary>檢查名稱是否已經被其他「未刪除」客戶使用。excludeId 用在更新時排除自己。</summary>
+    Task<bool> NameExistsAsync(string name, int? excludeId = null, CancellationToken ct = default);
 
     void Add(Customer customer);
 }
