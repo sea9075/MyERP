@@ -25,6 +25,11 @@ public interface ICategoryRepository
     /// </summary>
     Task<bool> NameExistsAsync(string name, int? excludeId = null, CancellationToken ct = default);
 
+    /// <summary>
+    /// 檢查分類編號（Code）是否已經被其他「未刪除」分類使用。excludeId 用在更新時排除自己。
+    /// </summary>
+    Task<bool> CodeExistsAsync(string code, int? excludeId = null, CancellationToken ct = default);
+
     void Add(Category category);
 }
 

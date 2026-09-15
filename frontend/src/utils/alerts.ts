@@ -56,6 +56,39 @@ export function notifyError(message: string): void {
   });
 }
 
+/**
+ * 全站表單驗證錯誤的統一顯示方式（使用者需求）：不在欄位下方顯示文字說明（該部分由
+ * global.css 隱藏 antd 的 .ant-form-item-explain-error），改用 SweetAlert2 的 toast 顯示在
+ * 畫面右上角；欄位本身還是會照 antd 預設行為出現紅框。如果同時有多個欄位出錯，也合併成
+ *「一則」訊息顯示，不會跳出好幾個 toast。
+ */
+export function notifyValidationErrors(messages: string[]): void {
+  const unique = Array.from(new Set(messages.filter((m) => !!m)));
+  if (unique.length === 0) return;
+
+  const text = unique.length === 1 ? unique[0] : unique.map((m) => `．${m}`).join('\n');
+  void Swal.fire({
+    icon: 'error',
+    title: '請確認輸入內容',
+    text,
+    toast: true,
+    position: 'top-end',
+    timer: 5000,
+    showConfirmButton: false,
+  });
+}
+
+/**
+ * 把 antd Form.validateFields() 失敗時丟出的 rejection（{ errorFields: { errors: string[] }[] }），
+ * 或是 <Form onFinishFailed> 收到的 { errorFields } 物件，統一整理成一份不重複的錯誤訊息陣列，
+ * 餵給 notifyValidationErrors 顯示。
+ */
+export function extractFormErrorMessages(err: unknown): string[] {
+  const errorFields = (err as { errorFields?: { errors: string[] }[] } | undefined)?.errorFields;
+  if (!errorFields) return [];
+  return errorFields.flatMap((field) => field.errors);
+}
+
 function escapeHtml(value: string): string {
   const div = document.createElement('div');
   div.textContent = value;

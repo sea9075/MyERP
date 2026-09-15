@@ -9,7 +9,7 @@ import { useActiveProducts } from '@/api/products';
 import { useCreateSalesOrder } from '@/api/salesOrders';
 import type { CreateSalesOrderItemRequest } from '@/api/types';
 import { AddButton } from '@/components/common/ActionButtons';
-import { notifyError, notifySuccess } from '@/utils/alerts';
+import { extractFormErrorMessages, notifySuccess, notifyValidationErrors } from '@/utils/alerts';
 import { formatCurrency } from '@/utils/format';
 
 interface SalesOrderFormValues {
@@ -19,6 +19,7 @@ interface SalesOrderFormValues {
   items: CreateSalesOrderItemRequest[];
 }
 
+/** 只有 Support（客服部門）能進到這頁：新增出貨單、自動扣庫存（ERP.md §4.4）。 */
 export function SalesOrderFormPage() {
   const navigate = useNavigate();
   const [form] = Form.useForm<SalesOrderFormValues>();
@@ -33,12 +34,12 @@ export function SalesOrderFormPage() {
     [customersQuery.data],
   );
   const productOptions = useMemo(
-    () =>
-      (productsQuery.data ?? []).map((p) => ({
-        label: `${p.name}（${p.sku}）目前庫存 ${p.currentStock}`,
-        value: p.id,
-        salePrice: p.salePrice,
-      })),
+    () => (productsQuery.data ?? []).map((p) => ({ label: `${p.name}（${p.sku}）`, value: p.id, salePrice: p.salePrice, currentStock: p.currentStock })),
+    [productsQuery.data],
+  );
+  // 依 productId 查目前庫存，給「目前庫存」欄位跟數量是否超過庫存的提示用。
+  const stockByProductId = useMemo(
+    () => new Map((productsQuery.data ?? []).map((p) => [p.id, p.currentStock])),
     [productsQuery.data],
   );
 
@@ -51,17 +52,22 @@ export function SalesOrderFormPage() {
   const handleFinish = async (values: SalesOrderFormValues) => {
     try {
       await createMutation.mutateAsync({
-        customerId: values.customerId,
-        orderDate: values.orderDate?.toISOString(),
+        // 可留空＝一般散客（ERP.md §4.4）。
+        customerId: values.customerId ?? null,
+        // 出貨日期只需要 yyyy-MM-dd，DatePicker 已經不給選時間，這裡固定送當天一開始（00:00）。
+        orderDate: values.orderDate?.startOf('day').toISOString(),
         note: values.note,
         items: values.items,
       });
-      notifySuccess('出貨單已建立，庫存已自動扣減');
+      notifySuccess('出貨單已建立，庫存已自動更新');
       navigate('/sales-orders');
     } catch (error) {
-      // 庫存不足時，後端整張單會失敗（BusinessRuleException → 400），訊息會直接說明是哪個商品庫存不足。
-      notifyError(extractErrorMessage(error));
+      notifyValidationErrors([extractErrorMessage(error)]);
     }
+  };
+
+  const handleFinishFailed = (info: { errorFields: { errors: string[] }[] }) => {
+    notifyValidationErrors(extractFormErrorMessages(info));
   };
 
   return (
@@ -73,14 +79,15 @@ export function SalesOrderFormPage() {
           form={form}
           layout="vertical"
           onFinish={handleFinish}
-          initialValues={{ orderDate: dayjs(), items: [{}] }}
+          onFinishFailed={handleFinishFailed}
+          initialValues={{ orderDate: dayjs().startOf('day'), items: [{}] }}
         >
-          <Form.Item name="customerId" label="客戶（可留空＝一般散客）">
-            <Select placeholder="一般散客" allowClear options={customerOptions} style={{ maxWidth: 320 }} />
+          <Form.Item name="customerId" label="客戶">
+            <Select placeholder="不選＝一般散客" allowClear showSearch optionFilterProp="label" options={customerOptions} style={{ maxWidth: 320 }} />
           </Form.Item>
 
           <Form.Item name="orderDate" label="出貨日期">
-            <DatePicker showTime style={{ maxWidth: 320 }} />
+            <DatePicker format="YYYY-MM-DD" style={{ maxWidth: 320 }} />
           </Form.Item>
 
           <Form.Item name="note" label="備註" rules={[{ max: 200 }]}>
@@ -89,19 +96,12 @@ export function SalesOrderFormPage() {
 
           <Typography.Title level={5}>商品明細</Typography.Title>
 
-          <Form.List
-            name="items"
-            rules={[
-              {
-                validator: async (_, list) => {
-                  if (!list || list.length === 0) {
-                    throw new Error('至少需要一筆商品明細');
-                  }
-                },
-              },
-            ]}
-          >
-            {(fields, { add, remove }, { errors }) => (
+          <Form.List name="items" rules={[{ validator: async (_, list) => {
+            if (!list || list.length === 0) {
+              throw new Error('至少需要一筆商品明細');
+            }
+          } }]}>
+            {(fields, { add, remove }) => (
               <>
                 <Table
                   rowKey={(field) => field.key}
@@ -123,7 +123,7 @@ export function SalesOrderFormPage() {
                             showSearch
                             optionFilterProp="label"
                             options={productOptions}
-                            style={{ minWidth: 260 }}
+                            style={{ minWidth: 220 }}
                             onChange={(_, option) => {
                               const opt = option as { salePrice?: number } | undefined;
                               if (opt?.salePrice !== undefined) {
@@ -135,6 +135,21 @@ export function SalesOrderFormPage() {
                           />
                         </Form.Item>
                       ),
+                    },
+                    {
+                      title: '目前庫存',
+                      key: 'currentStock',
+                      width: 100,
+                      render: (_, field) => {
+                        const productId = items?.[field.name]?.productId;
+                        if (productId === undefined) return '-';
+                        const stock = stockByProductId.get(productId);
+                        if (stock === undefined) return '-';
+                        const quantity = items?.[field.name]?.quantity ?? 0;
+                        return (
+                          <span style={{ color: quantity > stock ? '#dc2626' : undefined }}>{stock}</span>
+                        );
+                      },
                     },
                     {
                       title: '數量',
@@ -151,7 +166,7 @@ export function SalesOrderFormPage() {
                       ),
                     },
                     {
-                      title: '銷售單價',
+                      title: '出貨單價',
                       dataIndex: 'unitPrice',
                       width: 140,
                       render: (_, field) => (
@@ -185,12 +200,6 @@ export function SalesOrderFormPage() {
                     },
                   ]}
                 />
-
-                {errors.length > 0 && (
-                  <Typography.Text type="danger" style={{ display: 'block', marginTop: 8 }}>
-                    {errors.join('、')}
-                  </Typography.Text>
-                )}
 
                 <AddButton style={{ marginTop: 12 }} onClick={() => add({})}>
                   新增明細

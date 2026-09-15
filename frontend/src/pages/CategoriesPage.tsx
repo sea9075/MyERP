@@ -7,11 +7,12 @@ import type { CategoryDto } from '@/api/types';
 import { AddButton, DeleteButton, EditButton } from '@/components/common/ActionButtons';
 import { PageToolbar } from '@/components/common/PageToolbar';
 import { SoftDeleteFilter } from '@/components/common/SoftDeleteFilter';
-import { confirmDelete, notifyError, notifySuccess } from '@/utils/alerts';
+import { confirmDelete, extractFormErrorMessages, notifyError, notifySuccess, notifyValidationErrors } from '@/utils/alerts';
 import { formatDateTime } from '@/utils/format';
 
 interface CategoryFormValues {
   name: string;
+  code: string;
 }
 
 export function CategoriesPage() {
@@ -33,12 +34,19 @@ export function CategoriesPage() {
 
   const openEditModal = (record: CategoryDto) => {
     setEditing(record);
-    form.setFieldsValue({ name: record.name });
+    form.setFieldsValue({ name: record.name, code: record.code });
     setModalOpen(true);
   };
 
   const handleSubmit = async () => {
-    const values = await form.validateFields();
+    let values: CategoryFormValues;
+    try {
+      values = await form.validateFields();
+    } catch (err) {
+      notifyValidationErrors(extractFormErrorMessages(err));
+      return;
+    }
+
     try {
       if (editing) {
         await updateMutation.mutateAsync({ id: editing.id, request: values });
@@ -49,7 +57,7 @@ export function CategoriesPage() {
       }
       setModalOpen(false);
     } catch (error) {
-      notifyError(extractErrorMessage(error));
+      notifyValidationErrors([extractErrorMessage(error)]);
     }
   };
 
@@ -67,6 +75,7 @@ export function CategoriesPage() {
 
   const columns: ColumnsType<CategoryDto> = [
     { title: '分類名稱', dataIndex: 'name' },
+    { title: '分類編號', dataIndex: 'code', width: 100 },
     {
       title: '狀態',
       dataIndex: 'isDeleted',
@@ -128,6 +137,19 @@ export function CategoriesPage() {
             rules={[{ required: true, message: '請輸入分類名稱' }, { max: 50, message: '最多 50 個字' }]}
           >
             <Input placeholder="例如：飲料" />
+          </Form.Item>
+
+          <Form.Item
+            name="code"
+            label="分類編號"
+            normalize={(value: string) => value?.toUpperCase()}
+            rules={[
+              { required: true, message: '請輸入分類編號' },
+              { max: 5, message: '最多 5 個字元' },
+              { pattern: /^[A-Z0-9]+$/, message: '只能使用英文大寫與數字' },
+            ]}
+          >
+            <Input placeholder="例如：飲料是 DRI、餅乾是 COK" />
           </Form.Item>
         </Form>
       </Modal>

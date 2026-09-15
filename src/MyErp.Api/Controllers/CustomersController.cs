@@ -7,12 +7,14 @@ using MyErp.Application.Services;
 namespace MyErp.Api.Controllers;
 
 /// <summary>
-/// ERP.md §8 Phase 2 項目 11：客戶管理 CRUD。屬於既有 ERP 模組，只有 Product/Manager/Admin 能用
-/// （新增：權限系統，HR 部門看不到）。
+/// ERP.md §8 Phase 2 項目 11：客戶管理 CRUD。
+/// 商品模組改版後（使用者決定）：客戶管理是 Support（客服部門）的核心工作範圍，跟出貨單一起用，
+/// Manager/Admin 也能管理；商品部（Product）不需要管理客戶，這裡拿掉 Product 的存取權限，
+/// 跟前端 AppLayout.tsx／App.tsx 的角色限制保持一致。
 /// </summary>
 [ApiController]
 [Route("api/customers")]
-[Authorize(Roles = "Product,Manager,Admin")]
+[Authorize(Roles = "Manager,Admin,Support")]
 public class CustomersController(ICustomerService customerService) : ControllerBase
 {
     [HttpGet]

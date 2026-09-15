@@ -9,7 +9,7 @@ import { useActiveSuppliers } from '@/api/suppliers';
 import { useActiveProducts } from '@/api/products';
 import type { CreatePurchaseOrderItemRequest } from '@/api/types';
 import { AddButton } from '@/components/common/ActionButtons';
-import { notifyError, notifySuccess } from '@/utils/alerts';
+import { extractFormErrorMessages, notifySuccess, notifyValidationErrors } from '@/utils/alerts';
 import { formatCurrency } from '@/utils/format';
 
 interface PurchaseOrderFormValues {
@@ -47,15 +47,20 @@ export function PurchaseOrderFormPage() {
     try {
       await createMutation.mutateAsync({
         supplierId: values.supplierId,
-        orderDate: values.orderDate?.toISOString(),
+        // 進貨日期只需要 yyyy-MM-dd，DatePicker 已經不給選時間，這裡固定送當天一開始（00:00）。
+        orderDate: values.orderDate?.startOf('day').toISOString(),
         note: values.note,
         items: values.items,
       });
       notifySuccess('進貨單已建立，庫存已自動更新');
       navigate('/purchase-orders');
     } catch (error) {
-      notifyError(extractErrorMessage(error));
+      notifyValidationErrors([extractErrorMessage(error)]);
     }
+  };
+
+  const handleFinishFailed = (info: { errorFields: { errors: string[] }[] }) => {
+    notifyValidationErrors(extractFormErrorMessages(info));
   };
 
   return (
@@ -67,14 +72,15 @@ export function PurchaseOrderFormPage() {
           form={form}
           layout="vertical"
           onFinish={handleFinish}
-          initialValues={{ orderDate: dayjs(), items: [{}] }}
+          onFinishFailed={handleFinishFailed}
+          initialValues={{ orderDate: dayjs().startOf('day'), items: [{}] }}
         >
           <Form.Item name="supplierId" label="供應商" rules={[{ required: true, message: '請選擇供應商' }]}>
             <Select placeholder="請選擇供應商" options={supplierOptions} style={{ maxWidth: 320 }} />
           </Form.Item>
 
           <Form.Item name="orderDate" label="進貨日期">
-            <DatePicker showTime style={{ maxWidth: 320 }} />
+            <DatePicker format="YYYY-MM-DD" style={{ maxWidth: 320 }} />
           </Form.Item>
 
           <Form.Item name="note" label="備註" rules={[{ max: 200 }]}>
@@ -88,7 +94,7 @@ export function PurchaseOrderFormPage() {
               throw new Error('至少需要一筆商品明細');
             }
           } }]}>
-            {(fields, { add, remove }, { errors }) => (
+            {(fields, { add, remove }) => (
               <>
                 <Table
                   rowKey={(field) => field.key}
@@ -172,12 +178,6 @@ export function PurchaseOrderFormPage() {
                     },
                   ]}
                 />
-
-                {errors.length > 0 && (
-                  <Typography.Text type="danger" style={{ display: 'block', marginTop: 8 }}>
-                    {errors.join('、')}
-                  </Typography.Text>
-                )}
 
                 <AddButton style={{ marginTop: 12 }} onClick={() => add({})}>
                   新增明細

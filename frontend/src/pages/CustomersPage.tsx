@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Form, Input, Modal, Table, Tag, Tooltip } from 'antd';
+import { Form, Input, Modal, Table, Tag } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import { extractErrorMessage } from '@/api/client';
 import { useCreateCustomer, useCustomers, useDeleteCustomer, useUpdateCustomer } from '@/api/customers';
@@ -7,7 +7,7 @@ import type { CustomerDto } from '@/api/types';
 import { AddButton, DeleteButton, EditButton } from '@/components/common/ActionButtons';
 import { PageToolbar } from '@/components/common/PageToolbar';
 import { SoftDeleteFilter } from '@/components/common/SoftDeleteFilter';
-import { confirmDelete, notifyError, notifySuccess } from '@/utils/alerts';
+import { confirmDelete, extractFormErrorMessages, notifyError, notifySuccess, notifyValidationErrors } from '@/utils/alerts';
 import { formatDateTime } from '@/utils/format';
 
 interface CustomerFormValues {
@@ -16,6 +16,7 @@ interface CustomerFormValues {
   note?: string;
 }
 
+/** Support（客服部）的核心工作範圍之一：客戶資料管理，跟出貨單一起用。Manager/Admin 也能用。 */
 export function CustomersPage() {
   const [includeDeleted, setIncludeDeleted] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -35,12 +36,23 @@ export function CustomersPage() {
 
   const openEditModal = (record: CustomerDto) => {
     setEditing(record);
-    form.setFieldsValue({ name: record.name, phone: record.phone ?? undefined, note: record.note ?? undefined });
+    form.setFieldsValue({
+      name: record.name,
+      phone: record.phone ?? undefined,
+      note: record.note ?? undefined,
+    });
     setModalOpen(true);
   };
 
   const handleSubmit = async () => {
-    const values = await form.validateFields();
+    let values: CustomerFormValues;
+    try {
+      values = await form.validateFields();
+    } catch (err) {
+      notifyValidationErrors(extractFormErrorMessages(err));
+      return;
+    }
+
     try {
       if (editing) {
         await updateMutation.mutateAsync({ id: editing.id, request: values });
@@ -51,7 +63,7 @@ export function CustomersPage() {
       }
       setModalOpen(false);
     } catch (error) {
-      notifyError(extractErrorMessage(error));
+      notifyValidationErrors([extractErrorMessage(error)]);
     }
   };
 
@@ -63,7 +75,6 @@ export function CustomersPage() {
       await deleteMutation.mutateAsync(record.id);
       notifySuccess('客戶已刪除');
     } catch (error) {
-      // 客戶還有出貨單引用時，後端會擋下來並回傳說明訊息（BusinessRuleException → 400）。
       notifyError(extractErrorMessage(error));
     }
   };
@@ -84,12 +95,10 @@ export function CustomersPage() {
       title: '操作',
       key: 'actions',
       width: 160,
+      // 客戶目前沒有「恢復」功能（後端 UpdateAsync 不支援切換 IsDeleted，見 CustomerService.cs），
+      // 已刪除的客戶只能查看，不提供編輯／刪除操作。
       render: (_, record) =>
-        record.isDeleted ? (
-          <Tooltip title="客戶刪除後無法從畫面復原">
-            <span style={{ color: 'rgba(0,0,0,0.25)' }}>已刪除</span>
-          </Tooltip>
-        ) : (
+        record.isDeleted ? null : (
           <>
             <EditButton text onClick={() => openEditModal(record)}>
               編輯

@@ -26,12 +26,19 @@ public class CategoryService(ICategoryRepository categoryRepository, IUnitOfWork
     public async Task<CategoryDto> CreateAsync(CreateCategoryRequest request, string currentUsername, CancellationToken ct = default)
     {
         var name = request.Name.TrimRequired();
+        var code = request.Code.TrimRequired().ToUpperInvariant();
+
         if (await categoryRepository.NameExistsAsync(name, excludeId: null, ct))
         {
             throw new BusinessRuleException($"分類名稱 '{name}' 已經存在。");
         }
 
-        var category = new Category { Name = name };
+        if (await categoryRepository.CodeExistsAsync(code, excludeId: null, ct))
+        {
+            throw new BusinessRuleException($"分類編號 '{code}' 已經存在。");
+        }
+
+        var category = new Category { Name = name, Code = code };
         category.InitializeAudit(currentUsername);
 
         categoryRepository.Add(category);
@@ -45,12 +52,20 @@ public class CategoryService(ICategoryRepository categoryRepository, IUnitOfWork
             ?? throw new BusinessRuleException($"找不到分類 (Id={id})。");
 
         var name = request.Name.TrimRequired();
+        var code = request.Code.TrimRequired().ToUpperInvariant();
+
         if (await categoryRepository.NameExistsAsync(name, excludeId: id, ct))
         {
             throw new BusinessRuleException($"分類名稱 '{name}' 已經存在。");
         }
 
+        if (await categoryRepository.CodeExistsAsync(code, excludeId: id, ct))
+        {
+            throw new BusinessRuleException($"分類編號 '{code}' 已經存在。");
+        }
+
         category.Name = name;
+        category.Code = code;
         category.TouchUpdated(currentUsername);
 
         await unitOfWork.SaveChangesAsync(ct);
@@ -77,6 +92,7 @@ public class CategoryService(ICategoryRepository categoryRepository, IUnitOfWork
     {
         Id = category.Id,
         Name = category.Name,
+        Code = category.Code,
         CreatedAt = category.CreatedAt,
         UpdatedAt = category.UpdatedAt,
         CreatedBy = category.CreatedBy,

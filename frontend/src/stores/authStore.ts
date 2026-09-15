@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { LoginResponse, UserRole } from '@/api/types';
+import type { Department, LoginResponse } from '@/api/types';
 
 const STORAGE_KEY = 'myerp.auth';
 
@@ -9,7 +9,7 @@ interface StoredAuth {
   userId: number;
   username: string;
   displayName: string;
-  role: UserRole;
+  role: Department;
 }
 
 interface AuthState {
@@ -17,7 +17,7 @@ interface AuthState {
   userId: number | null;
   username: string | null;
   displayName: string | null;
-  role: UserRole | null;
+  role: Department | null;
   isAuthenticated: boolean;
   login: (response: LoginResponse) => void;
   logout: () => void;

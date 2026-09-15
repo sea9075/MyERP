@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using MyErp.Application.Abstractions;
 using MyErp.Domain.Common;
 using MyErp.Domain.Entities;
@@ -55,7 +56,11 @@ public class MyErpDbContext(DbContextOptions<MyErpDbContext> options) : DbContex
         modelBuilder.Entity<Category>(entity =>
         {
             entity.Property(e => e.Name).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.Code).HasMaxLength(5).IsRequired();
             ConfigureAuditColumns(entity);
+
+            // 只在「未刪除」的分類之間唯一：分類刪除後，同樣的編號可以再被新分類使用。
+            entity.HasIndex(e => e.Code).IsUnique().HasFilter("[IsDeleted] = 0");
         });
 
         modelBuilder.Entity<Supplier>(entity =>
@@ -239,6 +244,40 @@ public class MyErpDbContext(DbContextOptions<MyErpDbContext> options) : DbContex
                 .WithMany(emp => emp.PayrollRecords)
                 .HasForeignKey(e => e.EmployeeId);
         });
+
+        // ---- 全站時區修正 ----
+        // 問題（使用者回報）：新增進貨單當下畫面顯示的時間，跟列表重新整理後顯示的時間差了 8 小時
+        // （台灣 UTC+8）。根本原因：所有 DateTime 欄位存進 SQL Server datetime2 時雖然存的是 UTC
+        // 時間（程式裡都用 DateTime.UtcNow／前端 toISOString()），但 SQL Server 不記錄時區資訊，
+        // EF Core 讀回來的 CLR DateTime.Kind 一律是 Unspecified；System.Text.Json 序列化
+        // Unspecified 的 DateTime 時不會加上代表 UTC 的 "Z" 尾碼，前端 dayjs() 收到沒有 "Z" 的字串
+        // 會誤判成「已經是瀏覽器當地時間」，等於整個時間被少轉換一次時區，正好差 8 小時。
+        //
+        // 修法：在讀出資料庫的當下，把每一個 DateTime/DateTime? 欄位的 Kind 一律標記成 Utc
+        // （寫入資料庫時原樣寫回，不做任何轉換——反正存的本來就已經是 UTC 時間）。這樣序列化出去
+        // 一律會帶 "Z"，前端 dayjs() 才能正確轉換成瀏覽器當地時間顯示，全站每一個 DateTime 欄位都
+        // 受惠，不用一個一個欄位改。
+        var utcConverter = new ValueConverter<DateTime, DateTime>(
+            v => v,
+            v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
+        var nullableUtcConverter = new ValueConverter<DateTime?, DateTime?>(
+            v => v,
+            v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : v);
+
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            foreach (var property in entityType.GetProperties())
+            {
+                if (property.ClrType == typeof(DateTime))
+                {
+                    property.SetValueConverter(utcConverter);
+                }
+                else if (property.ClrType == typeof(DateTime?))
+                {
+                    property.SetValueConverter(nullableUtcConverter);
+                }
+            }
+        }
 
         // 對所有實作 IAuditable 的實體（Category/Product/Supplier/Customer/User/Employee/
         // AttendanceRecord/PayrollRecord）自動套用 Global Query Filter：預設查詢一律排除

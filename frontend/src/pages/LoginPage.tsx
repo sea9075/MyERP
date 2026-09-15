@@ -7,7 +7,7 @@ import type { Location } from 'react-router-dom';
 import { login } from '@/api/auth';
 import { extractErrorMessage } from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
-import { notifySuccess } from '@/utils/alerts';
+import { extractFormErrorMessages, notifySuccess, notifyValidationErrors } from '@/utils/alerts';
 import type { LoginRequest } from '@/api/types';
 
 export function LoginPage() {
@@ -40,6 +40,10 @@ export function LoginPage() {
     mutation.mutate(values);
   };
 
+  const handleFinishFailed = (info: { errorFields: { errors: string[] }[] }) => {
+    notifyValidationErrors(extractFormErrorMessages(info));
+  };
+
   return (
     <div
       style={{
@@ -58,7 +62,13 @@ export function LoginPage() {
           <Typography.Text type="secondary">請登入以繼續</Typography.Text>
         </div>
 
-        <Form layout="vertical" onFinish={handleFinish} autoComplete="off" disabled={mutation.isPending}>
+        <Form
+          layout="vertical"
+          onFinish={handleFinish}
+          onFinishFailed={handleFinishFailed}
+          autoComplete="off"
+          disabled={mutation.isPending}
+        >
           <Form.Item name="username" label="帳號" rules={[{ required: true, message: '請輸入帳號' }]}>
             <Input prefix={<UserOutlined />} placeholder="請輸入帳號" autoFocus />
           </Form.Item>

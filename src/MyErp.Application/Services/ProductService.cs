@@ -17,7 +17,11 @@ public interface IProductService
     Task DeleteAsync(int id, string currentUsername, CancellationToken ct = default);
 }
 
-public class ProductService(IProductRepository productRepository, ISupplierRepository supplierRepository, IUnitOfWork unitOfWork)
+public class ProductService(
+    IProductRepository productRepository,
+    ISupplierRepository supplierRepository,
+    ICategoryRepository categoryRepository,
+    IUnitOfWork unitOfWork)
     : IProductService
 {
     public async Task<List<ProductDto>> SearchAsync(string? keyword, int? categoryId, bool? lowStock, bool includeDeleted, CancellationToken ct = default)
@@ -42,13 +46,36 @@ public class ProductService(IProductRepository productRepository, ISupplierRepos
 
     public async Task<ProductDto> CreateAsync(CreateProductRequest request, string currentUsername, CancellationToken ct = default)
     {
-        await ValidateAsync(request, excludeId: null, ct);
+        request.Name = request.Name.TrimRequired();
+        request.Unit = request.Unit.TrimRequired();
+
+        var category = await categoryRepository.GetByIdAsync(request.CategoryId, ct)
+            ?? throw new BusinessRuleException($"找不到分類 (Id={request.CategoryId})。");
+        if (category.IsDeleted)
+        {
+            throw new BusinessRuleException($"分類「{category.Name}」已經被刪除，無法用來建立商品。");
+        }
+
+        if (request.SupplierId is { } supplierId && !await supplierRepository.ExistsAsync(supplierId, ct))
+        {
+            throw new BusinessRuleException($"找不到供應商 (Id={supplierId})。");
+        }
+
+        // 商品標號＝分類編號 + "-" + 7 碼流水號（例如 COK-0000001），條碼＝標號去掉 "-"，
+        // 兩者都由系統自動產生，不開放使用者輸入或修改。流水號存在 Category.NextSequence，
+        // 跟 PurchaseOrderService.GenerateOrderNoAsync 的單號產生方式一樣：1~5 人低併發情境下
+        // 用「讀出來、+1、存檔」已經足夠，嚴格防呆可以之後再改用資料庫序號機制。
+        var sequence = category.NextSequence;
+        var sku = $"{category.Code}-{sequence:D7}";
+        var barcode = sku.Replace("-", string.Empty);
+
+        category.NextSequence = sequence + 1;
+        category.TouchUpdated(currentUsername);
 
         var product = new Product
         {
-            // ValidateAsync 已經先把 Sku/Barcode/Name/Unit 修剪過頭尾空白，這裡直接用即可。
-            Sku = request.Sku,
-            Barcode = request.Barcode,
+            Sku = sku,
+            Barcode = barcode,
             Name = request.Name,
             CategoryId = request.CategoryId,
             Unit = request.Unit,
@@ -72,12 +99,16 @@ public class ProductService(IProductRepository productRepository, ISupplierRepos
         var product = await productRepository.GetByIdAsync(id, ct)
             ?? throw new BusinessRuleException($"找不到商品 (Id={id})。");
 
-        await ValidateAsync(request, excludeId: id, ct);
+        request.Name = request.Name.TrimRequired();
+        request.Unit = request.Unit.TrimRequired();
 
-        product.Sku = request.Sku;
-        product.Barcode = request.Barcode;
+        if (request.SupplierId is { } supplierId && !await supplierRepository.ExistsAsync(supplierId, ct))
+        {
+            throw new BusinessRuleException($"找不到供應商 (Id={supplierId})。");
+        }
+
+        // 分類／商品標號／條碼建立後就固定，這裡刻意不更新（見 UpdateProductRequest 的說明）。
         product.Name = request.Name;
-        product.CategoryId = request.CategoryId;
         product.Unit = request.Unit;
         product.CostPrice = request.CostPrice;
         product.SalePrice = request.SalePrice;
@@ -97,31 +128,6 @@ public class ProductService(IProductRepository productRepository, ISupplierRepos
 
         product.SoftDelete(currentUsername);
         await unitOfWork.SaveChangesAsync(ct);
-    }
-
-    private async Task ValidateAsync(CreateProductRequest request, int? excludeId, CancellationToken ct)
-    {
-        // 先把使用者輸入的字串欄位都修剪過（頭尾空白不算數），後面的查重比對、entity 賦值都直接用
-        // 已修剪過的版本，避免 " ABC" 跟 "ABC" 被當成不同的 SKU，也避免資料庫存進帶空白的髒資料。
-        request.Sku = request.Sku.TrimRequired();
-        request.Name = request.Name.TrimRequired();
-        request.Unit = request.Unit.TrimRequired();
-        request.Barcode = request.Barcode.TrimOrNull();
-
-        if (await productRepository.SkuExistsAsync(request.Sku, excludeId, ct))
-        {
-            throw new BusinessRuleException($"商品編號 (SKU) '{request.Sku}' 已經存在。");
-        }
-
-        if (request.Barcode != null && await productRepository.BarcodeExistsAsync(request.Barcode, excludeId, ct))
-        {
-            throw new BusinessRuleException($"條碼 '{request.Barcode}' 已經被其他商品使用。");
-        }
-
-        if (request.SupplierId is { } supplierId && !await supplierRepository.ExistsAsync(supplierId, ct))
-        {
-            throw new BusinessRuleException($"找不到供應商 (Id={supplierId})。");
-        }
     }
 
     private static ProductDto ToDto(Product product) => new()

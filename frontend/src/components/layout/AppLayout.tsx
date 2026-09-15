@@ -1,13 +1,19 @@
 import { useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import {
   AppstoreOutlined,
   BarsOutlined,
+  ClockCircleOutlined,
   DashboardOutlined,
+  DollarOutlined,
   FileSearchOutlined,
+  IdcardOutlined,
   InboxOutlined,
   LogoutOutlined,
   ShopOutlined,
   ShoppingCartOutlined,
+  ShoppingOutlined,
+  SolutionOutlined,
   TagsOutlined,
   TeamOutlined,
   UserOutlined,
@@ -15,11 +21,21 @@ import {
 import { Avatar, Dropdown, Layout, Menu, Space, Tag, Typography } from 'antd';
 import type { MenuProps } from 'antd';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import type { Department } from '@/api/types';
 import { useAuthStore } from '@/stores/authStore';
 
 const { Header, Sider, Content } = Layout;
 
 type MenuItem = Required<MenuProps>['items'][number];
+
+/** 部門顯示用的中文標籤跟 Tag 顏色，統一放在這裡管理，避免各處各寫一份。 */
+const DEPARTMENT_LABEL: Record<Department, { label: string; color: string }> = {
+  Product: { label: '商品部', color: 'green' },
+  HR: { label: '人資部', color: 'purple' },
+  Manager: { label: '主管', color: 'gold' },
+  Admin: { label: '管理員', color: 'blue' },
+  Support: { label: '客服部', color: 'cyan' },
+};
 
 export function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
@@ -34,18 +50,71 @@ export function AppLayout() {
   const logout = useAuthStore((state) => state.logout);
 
   const menuItems: MenuItem[] = useMemo(() => {
-    const items: MenuItem[] = [
-      { key: '/', icon: <DashboardOutlined />, label: <Link to="/">儀表板</Link> },
-      { key: '/products', icon: <ShopOutlined />, label: <Link to="/products">商品管理</Link> },
+    const items: MenuItem[] = [{ key: '/', icon: <DashboardOutlined />, label: <Link to="/">儀表板</Link> }];
+
+    // 「商品與庫存」收合群組：分類管理 > 供應商管理 > 商品管理 > 庫存總覽（使用者指定的固定順序），
+    // 只有 Product/Manager/Admin 看得到。這是商品部門的工作範圍，跟客戶管理無關（客戶管理是
+    // Support 的工作範圍，見下方 topLevelOrderItems 的「客戶管理」項目）。
+    const inventoryGroupItems: Array<{ key: string; icon: ReactNode; label: ReactNode }> = [
       { key: '/categories', icon: <TagsOutlined />, label: <Link to="/categories">分類管理</Link> },
       { key: '/suppliers', icon: <AppstoreOutlined />, label: <Link to="/suppliers">供應商管理</Link> },
-      { key: '/customers', icon: <TeamOutlined />, label: <Link to="/customers">客戶管理</Link> },
-      { key: '/purchase-orders', icon: <InboxOutlined />, label: <Link to="/purchase-orders">進貨單</Link> },
-      { key: '/sales-orders', icon: <ShoppingCartOutlined />, label: <Link to="/sales-orders">出貨單</Link> },
+      { key: '/products', icon: <ShopOutlined />, label: <Link to="/products">商品管理</Link> },
       { key: '/inventory', icon: <BarsOutlined />, label: <Link to="/inventory">庫存總覽</Link> },
     ];
 
-    if (role === 'Admin') {
+    if (role === 'Product' || role === 'Manager' || role === 'Admin') {
+      items.push({
+        key: 'inventory-group',
+        icon: <ShoppingOutlined />,
+        label: '商品與庫存',
+        children: inventoryGroupItems,
+      });
+    }
+
+    // 進貨單／出貨單維持在群組外、獨立的頂層項目（使用者指定）。出貨單這次改成全面唯讀
+    // （拿掉新增／作廢，見 SalesOrdersPage），Support 部門只開放查詢，所以還是留在選單上。
+    // 客戶管理是 Support 的核心工作範圍之一（跟出貨單一起用），Manager/Admin 也能管理，
+    // 但商品部（Product）不需要（使用者明確表示：那一點需求是針對商品部門）。
+    const topLevelOrderItems: Array<{ key: string; icon: ReactNode; label: ReactNode; allowed: Department[] }> = [
+      { key: '/purchase-orders', icon: <InboxOutlined />, label: <Link to="/purchase-orders">進貨單</Link>, allowed: ['Product', 'Manager', 'Admin'] },
+      { key: '/sales-orders', icon: <ShoppingCartOutlined />, label: <Link to="/sales-orders">出貨單</Link>, allowed: ['Product', 'Manager', 'Admin', 'Support'] },
+      { key: '/customers', icon: <TeamOutlined />, label: <Link to="/customers">客戶管理</Link>, allowed: ['Manager', 'Admin', 'Support'] },
+    ];
+
+    if (role) {
+      items.push(
+        ...topLevelOrderItems
+          .filter((item) => item.allowed.includes(role))
+          .map(({ key, icon, label }) => ({ key, icon, label })),
+      );
+    }
+
+    // 打卡（我的出勤）：不分部門，任何登入使用者都要用，所以獨立放在最外層，不放進「人資」群組。
+    items.push({
+      key: '/my-attendance',
+      icon: <ClockCircleOutlined />,
+      label: <Link to="/my-attendance">我的出勤</Link>,
+    });
+
+    // 「人資」收合群組：員工管理／出勤管理（查全部＋手動補登）／薪資管理，只有 HR/Manager/Admin 看得到。
+    if (role === 'HR' || role === 'Manager' || role === 'Admin') {
+      items.push({
+        key: 'hr-group',
+        icon: <SolutionOutlined />,
+        label: '人資',
+        children: [
+          { key: '/employees', icon: <IdcardOutlined />, label: <Link to="/employees">員工管理</Link> },
+          {
+            key: '/attendance/manage',
+            icon: <ClockCircleOutlined />,
+            label: <Link to="/attendance/manage">出勤管理</Link>,
+          },
+          { key: '/payroll', icon: <DollarOutlined />, label: <Link to="/payroll">薪資管理</Link> },
+        ],
+      });
+    }
+
+    if (role === 'Manager' || role === 'Admin') {
       items.push({
         key: '/activity-logs',
         icon: <FileSearchOutlined />,
@@ -57,11 +126,23 @@ export function AppLayout() {
   }, [role]);
 
   // 選單選中狀態用「最長前綴相符」判斷，這樣 /purchase-orders/new 這種子頁面也會讓
-  // 「進貨單」維持選中，不會整排選單都沒有 highlight。
+  // 「進貨單」維持選中，不會整排選單都沒有 highlight。子選單（人資群組）的 key 不是路徑，
+  // 要排除掉，不然會被 location.pathname.startsWith('hr-group') 誤判。
   const selectedKey = useMemo(() => {
-    const matched = menuItems
-      .map((item) => item?.key as string)
-      .filter((key) => key === '/' ? location.pathname === '/' : location.pathname.startsWith(key))
+    const flatKeys: string[] = [];
+    for (const item of menuItems) {
+      const key = item?.key as string;
+      if (key?.startsWith('/')) flatKeys.push(key);
+      const children = (item as { children?: MenuItem[] })?.children;
+      if (children) {
+        for (const child of children) {
+          const childKey = child?.key as string;
+          if (childKey?.startsWith('/')) flatKeys.push(childKey);
+        }
+      }
+    }
+    const matched = flatKeys
+      .filter((key) => (key === '/' ? location.pathname === '/' : location.pathname.startsWith(key)))
       .sort((a, b) => b.length - a.length)[0];
     return matched ? [matched] : [];
   }, [location.pathname, menuItems]);
@@ -77,6 +158,8 @@ export function AppLayout() {
       },
     },
   ];
+
+  const departmentMeta = role ? DEPARTMENT_LABEL[role] : undefined;
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -95,7 +178,13 @@ export function AppLayout() {
         >
           {collapsed ? 'ERP' : 'MyERP 進銷存'}
         </div>
-        <Menu theme="dark" mode="inline" selectedKeys={selectedKey} items={menuItems} />
+        <Menu
+          theme="dark"
+          mode="inline"
+          selectedKeys={selectedKey}
+          defaultOpenKeys={['hr-group']}
+          items={menuItems}
+        />
       </Sider>
       <Layout>
         <Header
@@ -111,7 +200,7 @@ export function AppLayout() {
             <Space style={{ cursor: 'pointer' }}>
               <Avatar icon={<UserOutlined />} size="small" />
               <Typography.Text>{displayName}</Typography.Text>
-              <Tag color={role === 'Admin' ? 'blue' : 'default'}>{role === 'Admin' ? '管理員' : '店員'}</Tag>
+              {departmentMeta && <Tag color={departmentMeta.color}>{departmentMeta.label}</Tag>}
             </Space>
           </Dropdown>
         </Header>

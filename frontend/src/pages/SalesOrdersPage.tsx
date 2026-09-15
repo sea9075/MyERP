@@ -9,13 +9,20 @@ import { useSalesOrders, useVoidSalesOrder } from '@/api/salesOrders';
 import type { SalesOrderDto } from '@/api/types';
 import { AddButton, VoidButton } from '@/components/common/ActionButtons';
 import { PageToolbar } from '@/components/common/PageToolbar';
+import { useAuthStore } from '@/stores/authStore';
 import { confirmVoid, notifyError, notifySuccess } from '@/utils/alerts';
 import { formatCurrency, formatDateTime } from '@/utils/format';
 
 const { RangePicker } = DatePicker;
 
+/**
+ * 出貨單：Product/Manager/Admin/Support 都能查詢，但新增／作廢只開放給 Support
+ * （客服部門，使用者決定），其他部門維持唯讀，畫面上看不到「新增出貨單」按鈕跟「作廢」操作。
+ */
 export function SalesOrdersPage() {
   const navigate = useNavigate();
+  const role = useAuthStore((state) => state.role);
+  const canManage = role === 'Support';
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null);
   const [customerId, setCustomerId] = useState<number | undefined>();
 
@@ -38,7 +45,7 @@ export function SalesOrdersPage() {
 
     try {
       await voidMutation.mutateAsync(record.id);
-      notifySuccess('出貨單已作廢，庫存已加回');
+      notifySuccess('出貨單已作廢');
     } catch (error) {
       notifyError(extractErrorMessage(error));
     }
@@ -57,19 +64,23 @@ export function SalesOrdersPage() {
     { title: '總金額', dataIndex: 'totalAmount', render: (v: number) => formatCurrency(v), width: 120 },
     { title: '備註', dataIndex: 'note', render: (v?: string | null) => v ?? '-', ellipsis: true },
     { title: '建立者', dataIndex: 'createdBy', width: 100 },
-    {
-      title: '操作',
-      key: 'actions',
-      width: 110,
-      render: (_, record) =>
-        record.status === 'Normal' ? (
-          <VoidButton text onClick={() => handleVoid(record)}>
-            作廢
-          </VoidButton>
-        ) : (
-          <span style={{ color: 'rgba(0,0,0,0.25)' }}>已作廢</span>
-        ),
-    },
+    ...(canManage
+      ? [
+          {
+            title: '操作',
+            key: 'actions',
+            width: 110,
+            render: (_: unknown, record: SalesOrderDto) =>
+              record.status === 'Normal' ? (
+                <VoidButton text onClick={() => handleVoid(record)}>
+                  作廢
+                </VoidButton>
+              ) : (
+                <span style={{ color: 'rgba(0,0,0,0.25)' }}>已作廢</span>
+              ),
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -89,7 +100,7 @@ export function SalesOrdersPage() {
             />
           </Space>
         }
-        actions={<AddButton onClick={() => navigate('/sales-orders/new')}>新增出貨單</AddButton>}
+        actions={canManage ? <AddButton onClick={() => navigate('/sales-orders/new')}>新增出貨單</AddButton> : undefined}
       />
 
       <Table

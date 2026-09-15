@@ -152,3 +152,13 @@ body {
 .low-stock-row {
   background: #fff1f0;
 }
+
+/*
+ * 全站錯誤顯示規則（使用者需求）：表單驗證錯誤不顯示在欄位下方的文字說明，改用
+ * SweetAlert2 的 toast 顯示在畫面右上角（見 utils/alerts.ts 的 notifyValidationErrors）。
+ * 欄位本身仍會維持 antd 預設的紅框（.ant-form-item-has-error 的邊框樣式不受影響，
+ * 這裡只隱藏「說明文字」那一行，不隱藏紅框本身）。
+ */
+.ant-form-item-explain-error {
+  display: none !important;
+}

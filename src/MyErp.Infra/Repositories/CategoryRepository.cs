@@ -28,5 +28,9 @@ public class CategoryRepository(MyErpDbContext db) : ICategoryRepository
     public Task<bool> NameExistsAsync(string name, int? excludeId = null, CancellationToken ct = default) =>
         db.Categories.AnyAsync(c => c.Name == name && (excludeId == null || c.Id != excludeId), ct);
 
+    /// <summary>不加 IgnoreQueryFilters()：只跟「未刪除」的分類比對，已軟刪除的分類編號可以被重複使用。</summary>
+    public Task<bool> CodeExistsAsync(string code, int? excludeId = null, CancellationToken ct = default) =>
+        db.Categories.AnyAsync(c => c.Code == code && (excludeId == null || c.Id != excludeId), ct);
+
     public void Add(Category category) => db.Categories.Add(category);
 }

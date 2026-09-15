@@ -4,6 +4,10 @@ import type { CreateSalesOrderRequest, SalesOrderDto } from './types';
 
 const KEY = 'sales-orders';
 
+// 出貨單新增／作廢只開放給 Support（客服部門），後端 SalesOrdersController 的 Create／Void
+// 端點也額外疊了一層 [Authorize(Roles = "Support")]；Product/Manager/Admin 呼叫這兩個 mutation
+// 會被後端擋下來（403），前端也只在 role === 'Support' 時才會顯示對應的按鈕（見 SalesOrdersPage）。
+
 export interface SalesOrderSearchParams {
   dateFrom?: string;
   dateTo?: string;
@@ -28,6 +32,7 @@ export function useCreateSalesOrder() {
     mutationFn: (request: CreateSalesOrderRequest) => apiClient.post<SalesOrderDto>('/sales-orders', request),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [KEY] });
+      // 出貨會改庫存，順便讓庫存頁的快取失效，下次切過去看到的是最新庫存。
       queryClient.invalidateQueries({ queryKey: ['inventory'] });
       queryClient.invalidateQueries({ queryKey: ['products'] });
     },

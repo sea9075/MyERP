@@ -22,7 +22,7 @@ public class CategoryServiceTests
     [Fact]
     public async Task CreateAsync_應該新增分類並設定稽核欄位()
     {
-        var request = new CreateCategoryRequest { Name = "飲料" };
+        var request = new CreateCategoryRequest { Name = "飲料", Code = "DRI" };
 
         Category? added = null;
         _categoryRepository.Setup(r => r.Add(It.IsAny<Category>())).Callback<Category>(c => added = c);
@@ -31,6 +31,7 @@ public class CategoryServiceTests
 
         Assert.NotNull(added);
         Assert.Equal("飲料", added!.Name);
+        Assert.Equal("DRI", added.Code);
         Assert.Equal("alice", result.CreatedBy);
         Assert.Equal("alice", result.UpdatedBy);
         Assert.Equal(result.CreatedAt, result.UpdatedAt);
@@ -40,7 +41,7 @@ public class CategoryServiceTests
     [Fact]
     public async Task CreateAsync_應該修剪名稱頭尾空白再查重與存檔()
     {
-        var request = new CreateCategoryRequest { Name = "  飲料  " };
+        var request = new CreateCategoryRequest { Name = "  飲料  ", Code = "DRI" };
 
         Category? added = null;
         _categoryRepository.Setup(r => r.Add(It.IsAny<Category>())).Callback<Category>(c => added = c);
@@ -58,7 +59,20 @@ public class CategoryServiceTests
     {
         _categoryRepository.Setup(r => r.NameExistsAsync("飲料", null, It.IsAny<CancellationToken>())).ReturnsAsync(true);
 
-        var request = new CreateCategoryRequest { Name = "飲料" };
+        var request = new CreateCategoryRequest { Name = "飲料", Code = "DRI" };
+
+        await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.CreateAsync(request, currentUsername: "alice"));
+
+        _categoryRepository.Verify(r => r.Add(It.IsAny<Category>()), Times.Never);
+        _unitOfWork.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task CreateAsync_編號重複時應該拋出BusinessRuleException_且不新增()
+    {
+        _categoryRepository.Setup(r => r.CodeExistsAsync("DRI", null, It.IsAny<CancellationToken>())).ReturnsAsync(true);
+
+        var request = new CreateCategoryRequest { Name = "飲料", Code = "DRI" };
 
         await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.CreateAsync(request, currentUsername: "alice"));
 
@@ -69,11 +83,11 @@ public class CategoryServiceTests
     [Fact]
     public async Task UpdateAsync_名稱重複時應該拋出BusinessRuleException_且排除自己()
     {
-        var category = new Category { Id = 1, Name = "舊名稱" };
+        var category = new Category { Id = 1, Name = "舊名稱", Code = "OLD" };
         _categoryRepository.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(category);
         _categoryRepository.Setup(r => r.NameExistsAsync("飲料", 1, It.IsAny<CancellationToken>())).ReturnsAsync(true);
 
-        var request = new UpdateCategoryRequest { Name = "飲料" };
+        var request = new UpdateCategoryRequest { Name = "飲料", Code = "DRI" };
 
         await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.UpdateAsync(1, request, currentUsername: "alice"));
 
@@ -117,7 +131,7 @@ public class CategoryServiceTests
     {
         _categoryRepository.Setup(r => r.GetByIdAsync(999, It.IsAny<CancellationToken>())).ReturnsAsync((Category?)null);
 
-        var request = new UpdateCategoryRequest { Name = "新名稱" };
+        var request = new UpdateCategoryRequest { Name = "新名稱", Code = "NEW" };
 
         await Assert.ThrowsAsync<BusinessRuleException>(() => _sut.UpdateAsync(999, request, currentUsername: "alice"));
     }

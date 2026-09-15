@@ -8,7 +8,7 @@ import type { SupplierDto } from '@/api/types';
 import { AddButton, DeleteButton, EditButton } from '@/components/common/ActionButtons';
 import { PageToolbar } from '@/components/common/PageToolbar';
 import { SoftDeleteFilter } from '@/components/common/SoftDeleteFilter';
-import { confirmDelete, notifyError, notifySuccess } from '@/utils/alerts';
+import { confirmDelete, extractFormErrorMessages, notifyError, notifySuccess, notifyValidationErrors } from '@/utils/alerts';
 import { formatDateTime } from '@/utils/format';
 
 interface SupplierFormValues {
@@ -49,7 +49,14 @@ export function SuppliersPage() {
   };
 
   const handleSubmit = async () => {
-    const values = await form.validateFields();
+    let values: SupplierFormValues;
+    try {
+      values = await form.validateFields();
+    } catch (err) {
+      notifyValidationErrors(extractFormErrorMessages(err));
+      return;
+    }
+
     try {
       if (editing) {
         await updateMutation.mutateAsync({ id: editing.id, request: { ...values, isDeleted: editing.isDeleted } });
@@ -60,7 +67,7 @@ export function SuppliersPage() {
       }
       setModalOpen(false);
     } catch (error) {
-      notifyError(extractErrorMessage(error));
+      notifyValidationErrors([extractErrorMessage(error)]);
     }
   };
 

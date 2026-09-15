@@ -15,7 +15,14 @@ public enum Department
     Product = 0,
     HR = 1,
     Manager = 2,
-    Admin = 3
+    Admin = 3,
+
+    /// <summary>
+    /// 客服部門（新增）。只能用客戶管理（CustomersController）跟出貨單（SalesOrdersController）；
+    /// 因為新增出貨單時要從商品下拉選單選商品，所以額外開放 ProductsController 的「唯讀」動作
+    /// （查詢/依 Id/依條碼），但不能新增/修改/刪除商品，也看不到「商品管理」畫面。
+    /// </summary>
+    Support = 4
 }
 
 /// <summary>

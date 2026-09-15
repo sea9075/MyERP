@@ -1,14 +1,18 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { AdminOnlyRoute, ProtectedRoute } from '@/router/ProtectedRoute';
+import { ProtectedRoute, RequireDepartment } from '@/router/ProtectedRoute';
 import { ActivityLogsPage } from '@/pages/ActivityLogsPage';
+import { AttendanceManagementPage } from '@/pages/AttendanceManagementPage';
 import { CategoriesPage } from '@/pages/CategoriesPage';
 import { CustomersPage } from '@/pages/CustomersPage';
 import { DashboardPage } from '@/pages/DashboardPage';
+import { EmployeesPage } from '@/pages/EmployeesPage';
 import { InventoryPage } from '@/pages/InventoryPage';
 import { InventoryTransactionsPage } from '@/pages/InventoryTransactionsPage';
 import { LoginPage } from '@/pages/LoginPage';
+import { MyAttendancePage } from '@/pages/MyAttendancePage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
+import { PayrollPage } from '@/pages/PayrollPage';
 import { ProductsPage } from '@/pages/ProductsPage';
 import { PurchaseOrderFormPage } from '@/pages/PurchaseOrderFormPage';
 import { PurchaseOrdersPage } from '@/pages/PurchaseOrdersPage';
@@ -24,22 +28,126 @@ export function App() {
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
           <Route path="/" element={<DashboardPage />} />
-          <Route path="/products" element={<ProductsPage />} />
-          <Route path="/categories" element={<CategoriesPage />} />
-          <Route path="/suppliers" element={<SuppliersPage />} />
-          <Route path="/customers" element={<CustomersPage />} />
-          <Route path="/purchase-orders" element={<PurchaseOrdersPage />} />
-          <Route path="/purchase-orders/new" element={<PurchaseOrderFormPage />} />
-          <Route path="/sales-orders" element={<SalesOrdersPage />} />
-          <Route path="/sales-orders/new" element={<SalesOrderFormPage />} />
-          <Route path="/inventory" element={<InventoryPage />} />
-          <Route path="/inventory/:productId/transactions" element={<InventoryTransactionsPage />} />
+
+          {/* 既有 ERP 模組：後端也已限定只有 Product/Manager/Admin 能呼叫，HR 部門直接打 API 會拿到 403。 */}
+          <Route
+            path="/products"
+            element={
+              <RequireDepartment allowed={['Product', 'Manager', 'Admin']}>
+                <ProductsPage />
+              </RequireDepartment>
+            }
+          />
+          <Route
+            path="/categories"
+            element={
+              <RequireDepartment allowed={['Product', 'Manager', 'Admin']}>
+                <CategoriesPage />
+              </RequireDepartment>
+            }
+          />
+          <Route
+            path="/suppliers"
+            element={
+              <RequireDepartment allowed={['Product', 'Manager', 'Admin']}>
+                <SuppliersPage />
+              </RequireDepartment>
+            }
+          />
+          <Route
+            path="/purchase-orders"
+            element={
+              <RequireDepartment allowed={['Product', 'Manager', 'Admin']}>
+                <PurchaseOrdersPage />
+              </RequireDepartment>
+            }
+          />
+          <Route
+            path="/purchase-orders/new"
+            element={
+              <RequireDepartment allowed={['Product', 'Manager', 'Admin']}>
+                <PurchaseOrderFormPage />
+              </RequireDepartment>
+            }
+          />
+          <Route
+            path="/sales-orders"
+            element={
+              <RequireDepartment allowed={['Product', 'Manager', 'Admin', 'Support']}>
+                <SalesOrdersPage />
+              </RequireDepartment>
+            }
+          />
+          {/* 新增出貨單：只有 Support（客服部門）能用（使用者決定），其他部門維持唯讀查詢。 */}
+          <Route
+            path="/sales-orders/new"
+            element={
+              <RequireDepartment allowed={['Support']}>
+                <SalesOrderFormPage />
+              </RequireDepartment>
+            }
+          />
+          {/* 客戶管理：Support（客服部）的核心工作範圍之一，跟出貨單一起用；商品部（Product）不需要。 */}
+          <Route
+            path="/customers"
+            element={
+              <RequireDepartment allowed={['Manager', 'Admin', 'Support']}>
+                <CustomersPage />
+              </RequireDepartment>
+            }
+          />
+          <Route
+            path="/inventory"
+            element={
+              <RequireDepartment allowed={['Product', 'Manager', 'Admin']}>
+                <InventoryPage />
+              </RequireDepartment>
+            }
+          />
+          <Route
+            path="/inventory/:productId/transactions"
+            element={
+              <RequireDepartment allowed={['Product', 'Manager', 'Admin']}>
+                <InventoryTransactionsPage />
+              </RequireDepartment>
+            }
+          />
+
+          {/* 打卡「我的出勤」：不分部門，任何登入使用者都能用，不套 RequireDepartment。 */}
+          <Route path="/my-attendance" element={<MyAttendancePage />} />
+
+          {/* 人資／薪資系統：只有 HR/Manager/Admin 能用。 */}
+          <Route
+            path="/employees"
+            element={
+              <RequireDepartment allowed={['HR', 'Manager', 'Admin']}>
+                <EmployeesPage />
+              </RequireDepartment>
+            }
+          />
+          <Route
+            path="/attendance/manage"
+            element={
+              <RequireDepartment allowed={['HR', 'Manager', 'Admin']}>
+                <AttendanceManagementPage />
+              </RequireDepartment>
+            }
+          />
+          <Route
+            path="/payroll"
+            element={
+              <RequireDepartment allowed={['HR', 'Manager', 'Admin']}>
+                <PayrollPage />
+              </RequireDepartment>
+            }
+          />
+
           <Route
             path="/activity-logs"
             element={
-              <AdminOnlyRoute>
+              <RequireDepartment allowed={['Manager', 'Admin']}>
                 <ActivityLogsPage />
-              </AdminOnlyRoute>
+              </RequireDepartment>
             }
           />
         </Route>

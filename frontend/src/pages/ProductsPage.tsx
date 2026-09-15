@@ -10,12 +10,11 @@ import type { ProductDto } from '@/api/types';
 import { AddButton, DeleteButton, EditButton } from '@/components/common/ActionButtons';
 import { PageToolbar } from '@/components/common/PageToolbar';
 import { SoftDeleteFilter } from '@/components/common/SoftDeleteFilter';
-import { confirmDelete, notifyError, notifySuccess } from '@/utils/alerts';
+import { confirmDelete, extractFormErrorMessages, notifyError, notifySuccess, notifyValidationErrors } from '@/utils/alerts';
 import { formatCurrency } from '@/utils/format';
 
+/** 商品編號 (SKU) 與條碼不再讓使用者輸入，由後端依分類編號自動產生，這裡不再收這兩個欄位。 */
 interface ProductFormValues {
-  sku: string;
-  barcode?: string;
   name: string;
   categoryId: number;
   unit: string;
@@ -65,8 +64,6 @@ export function ProductsPage() {
   const openEditModal = (record: ProductDto) => {
     setEditing(record);
     form.setFieldsValue({
-      sku: record.sku,
-      barcode: record.barcode ?? undefined,
       name: record.name,
       categoryId: record.categoryId,
       unit: record.unit,
@@ -79,10 +76,29 @@ export function ProductsPage() {
   };
 
   const handleSubmit = async () => {
-    const values = await form.validateFields();
+    let values: ProductFormValues;
+    try {
+      values = await form.validateFields();
+    } catch (err) {
+      notifyValidationErrors(extractFormErrorMessages(err));
+      return;
+    }
+
     try {
       if (editing) {
-        await updateMutation.mutateAsync({ id: editing.id, request: { ...values, isDeleted: editing.isDeleted } });
+        // 分類／SKU／條碼建立後不能修改，Update 只送可編輯的欄位。
+        await updateMutation.mutateAsync({
+          id: editing.id,
+          request: {
+            name: values.name,
+            unit: values.unit,
+            costPrice: values.costPrice,
+            salePrice: values.salePrice,
+            safetyStock: values.safetyStock,
+            supplierId: values.supplierId,
+            isDeleted: editing.isDeleted,
+          },
+        });
         notifySuccess('商品已更新');
       } else {
         await createMutation.mutateAsync(values);
@@ -90,7 +106,7 @@ export function ProductsPage() {
       }
       setModalOpen(false);
     } catch (error) {
-      notifyError(extractErrorMessage(error));
+      notifyValidationErrors([extractErrorMessage(error)]);
     }
   };
 
@@ -111,10 +127,7 @@ export function ProductsPage() {
       await updateMutation.mutateAsync({
         id: record.id,
         request: {
-          sku: record.sku,
-          barcode: record.barcode,
           name: record.name,
-          categoryId: record.categoryId,
           unit: record.unit,
           costPrice: record.costPrice,
           salePrice: record.salePrice,
@@ -249,22 +262,20 @@ export function ProductsPage() {
         width={560}
       >
         <Form form={form} layout="vertical">
-          <Row gutter={12}>
-            <Col span={12}>
-              <Form.Item
-                name="sku"
-                label="商品編號 (SKU)"
-                rules={[{ required: true, message: '請輸入商品編號' }, { max: 30 }]}
-              >
-                <Input placeholder="例如：SKU-0001" />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="barcode" label="條碼" rules={[{ max: 30 }]}>
-                <Input placeholder="選填" />
-              </Form.Item>
-            </Col>
-          </Row>
+          {editing && (
+            <Row gutter={12}>
+              <Col span={12}>
+                <Form.Item label="商品編號 (SKU)">
+                  <Input value={editing.sku} disabled />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item label="條碼">
+                  <Input value={editing.barcode ?? '-'} disabled />
+                </Form.Item>
+              </Col>
+            </Row>
+          )}
 
           <Form.Item
             name="name"
@@ -276,8 +287,13 @@ export function ProductsPage() {
 
           <Row gutter={12}>
             <Col span={14}>
-              <Form.Item name="categoryId" label="分類" rules={[{ required: true, message: '請選擇分類' }]}>
-                <Select placeholder="請選擇分類" options={categoryOptions} />
+              <Form.Item
+                name="categoryId"
+                label="分類"
+                rules={[{ required: true, message: '請選擇分類' }]}
+                tooltip={editing ? '分類決定商品編號的前綴，建立後不能更換。' : undefined}
+              >
+                <Select placeholder="請選擇分類" options={categoryOptions} disabled={!!editing} />
               </Form.Item>
             </Col>
             <Col span={10}>
