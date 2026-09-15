@@ -6,9 +6,10 @@ using MyErp.Application.Services;
 
 namespace MyErp.Api.Controllers;
 
+/// <summary>屬於既有 ERP 模組，只有 Product/Manager/Admin 能用（新增：權限系統，HR 部門看不到）。</summary>
 [ApiController]
 [Route("api/inventory")]
-[Authorize]
+[Authorize(Roles = "Product,Manager,Admin")]
 public class InventoryController(IInventoryService inventoryService) : ControllerBase
 {
     /// <summary>GET /api/inventory（ERP.md §4.5 / §6）：即時庫存列表。</summary>

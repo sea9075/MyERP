@@ -1,13 +1,21 @@
 namespace MyErp.Domain.Enums;
 
 /// <summary>
-/// 使用者角色。對應 ERP.md §4.7：
-/// Admin = 全功能（含商品/供應商設定、報表）；Staff = 僅進出貨操作、庫存查詢。
+/// 部門，同時也是系統的權限角色（新增：人資/薪資/權限系統）。
+/// Product＝一般 ERP 操作人員（商品/供應商/客戶/進出貨/庫存），HR＝人資與薪資，
+/// Manager／Admin＝管理層，兩者權限目前完全相同（系統裡還沒有「只有 Admin 能做、Manager 不行」的功能，
+/// 之後如果真的出現這種需求，再回來對個別 API 額外加 "Admin" 限制即可）。
+///
+/// 取代原本的 UserRole（Admin/Staff）：原本 Admin=0、Staff=1，這兩個數值刻意保留給
+/// Product=0、（原 Admin 對應到）Admin=3，實際的新舊資料對應寫在遷移腳本的手動修正裡
+/// （見交付說明「重要：套用 migration 前要做的事」）。
 /// </summary>
-public enum UserRole
+public enum Department
 {
-    Admin = 0,
-    Staff = 1
+    Product = 0,
+    HR = 1,
+    Manager = 2,
+    Admin = 3
 }
 
 /// <summary>
@@ -31,4 +39,14 @@ public enum InventoryChangeType
     ManualAdjustment = 3,
     PurchaseVoid = 4,
     SaleVoid = 5
+}
+
+/// <summary>
+/// 出勤紀錄的來源（新增：人資/薪資系統）。SelfService＝員工自己登入系統打卡；
+/// ManualEntry＝HR/Manager/Admin 事後手動建立或補登（例如忘記打卡、系統問題）。
+/// </summary>
+public enum AttendanceSource
+{
+    SelfService = 0,
+    ManualEntry = 1
 }

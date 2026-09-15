@@ -5,7 +5,7 @@ namespace MyErp.Application;
 
 public static class DependencyInjection
 {
-    /// <summary>在 MyErp.Api/Program.cs 呼叫，註冊 Phase 1 用到的所有 Service。</summary>
+    /// <summary>在 MyErp.Api/Program.cs 呼叫，註冊所有 Service。</summary>
     public static IServiceCollection AddMyErpApplication(this IServiceCollection services)
     {
         services.AddScoped<IAuthService, AuthService>();
@@ -17,6 +17,11 @@ public static class DependencyInjection
         services.AddScoped<IInventoryService, InventoryService>();
         services.AddScoped<ICustomerService, CustomerService>();
         services.AddScoped<IActivityLogService, ActivityLogService>();
+
+        // 新增：人資/薪資/出勤系統
+        services.AddScoped<IEmployeeService, EmployeeService>();
+        services.AddScoped<IAttendanceService, AttendanceService>();
+        services.AddScoped<IPayrollService, PayrollService>();
 
         return services;
     }

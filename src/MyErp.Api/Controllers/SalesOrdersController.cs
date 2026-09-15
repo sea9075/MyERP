@@ -6,9 +6,10 @@ using MyErp.Application.Services;
 
 namespace MyErp.Api.Controllers;
 
+/// <summary>屬於既有 ERP 模組，只有 Product/Manager/Admin 能用（新增：權限系統，HR 部門看不到）。</summary>
 [ApiController]
 [Route("api/sales-orders")]
-[Authorize]
+[Authorize(Roles = "Product,Manager,Admin")]
 public class SalesOrdersController(ISalesOrderService salesOrderService) : ControllerBase
 {
     [HttpGet]

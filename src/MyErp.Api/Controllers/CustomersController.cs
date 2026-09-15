@@ -6,10 +6,13 @@ using MyErp.Application.Services;
 
 namespace MyErp.Api.Controllers;
 
-/// <summary>ERP.md §8 Phase 2 項目 11：客戶管理 CRUD。</summary>
+/// <summary>
+/// ERP.md §8 Phase 2 項目 11：客戶管理 CRUD。屬於既有 ERP 模組，只有 Product/Manager/Admin 能用
+/// （新增：權限系統，HR 部門看不到）。
+/// </summary>
 [ApiController]
 [Route("api/customers")]
-[Authorize]
+[Authorize(Roles = "Product,Manager,Admin")]
 public class CustomersController(ICustomerService customerService) : ControllerBase
 {
     [HttpGet]

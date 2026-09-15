@@ -24,6 +24,11 @@ public class MyErpDbContext(DbContextOptions<MyErpDbContext> options) : DbContex
     public DbSet<InventoryTransaction> InventoryTransactions => Set<InventoryTransaction>();
     public DbSet<ActivityLog> ActivityLogs => Set<ActivityLog>();
 
+    // 新增：人資/薪資/出勤系統
+    public DbSet<Employee> Employees => Set<Employee>();
+    public DbSet<AttendanceRecord> AttendanceRecords => Set<AttendanceRecord>();
+    public DbSet<PayrollRecord> PayrollRecords => Set<PayrollRecord>();
+
     public async Task ExecuteInTransactionAsync(Func<Task> operation, CancellationToken cancellationToken = default)
     {
         var strategy = Database.CreateExecutionStrategy();
@@ -182,10 +187,63 @@ public class MyErpDbContext(DbContextOptions<MyErpDbContext> options) : DbContex
             entity.Property(e => e.CreatedBy).HasMaxLength(50).IsRequired();
         });
 
-        // 對所有實作 IAuditable 的實體（Category/Product/Supplier/Customer/User）自動套用
-        // Global Query Filter：預設查詢一律排除 IsDeleted=true 的資料。
-        // 個別 Repository 需要看到已刪除資料時（例如 includeDeleted=true、或 GetByIdAsync
-        // 這種不受刪除狀態影響的查詢），會用 IgnoreQueryFilters() 明確繞過。
+        // ---- 新增：人資/薪資/出勤系統 ----
+
+        modelBuilder.Entity<Employee>(entity =>
+        {
+            entity.Property(e => e.MonthlySalary).HasPrecision(10, 2);
+            entity.Property(e => e.JobTitle).HasMaxLength(50);
+            entity.Property(e => e.Phone).HasMaxLength(30);
+            entity.Property(e => e.Address).HasMaxLength(200);
+            entity.Property(e => e.EmergencyContactName).HasMaxLength(50);
+            entity.Property(e => e.EmergencyContactPhone).HasMaxLength(30);
+            ConfigureAuditColumns(entity);
+
+            // 一個 User 最多只能對應一筆 Employee（一對一）。
+            entity.HasIndex(e => e.UserId).IsUnique();
+
+            entity.HasOne(e => e.User)
+                .WithOne(u => u.Employee)
+                .HasForeignKey<Employee>(e => e.UserId);
+        });
+
+        modelBuilder.Entity<AttendanceRecord>(entity =>
+        {
+            entity.Property(e => e.Note).HasMaxLength(200);
+            ConfigureAuditColumns(entity);
+
+            // 一位員工、一天只能有一筆「未刪除」的出勤紀錄；刪除後可以讓同一天重新補登一筆。
+            entity.HasIndex(e => new { e.EmployeeId, e.WorkDate }).IsUnique().HasFilter("[IsDeleted] = 0");
+
+            entity.HasOne(e => e.Employee)
+                .WithMany(emp => emp.AttendanceRecords)
+                .HasForeignKey(e => e.EmployeeId);
+        });
+
+        modelBuilder.Entity<PayrollRecord>(entity =>
+        {
+            entity.Property(e => e.BaseSalary).HasPrecision(10, 2);
+            entity.Property(e => e.RegularHours).HasPrecision(6, 2);
+            entity.Property(e => e.OvertimeHoursTier1).HasPrecision(6, 2);
+            entity.Property(e => e.OvertimeHoursTier2).HasPrecision(6, 2);
+            entity.Property(e => e.OvertimePay).HasPrecision(10, 2);
+            entity.Property(e => e.BonusAmount).HasPrecision(10, 2);
+            entity.Property(e => e.TotalPay).HasPrecision(10, 2);
+            entity.Property(e => e.Note).HasMaxLength(200);
+            ConfigureAuditColumns(entity);
+
+            // 一個員工、一個月份只能有一筆「未刪除」的薪資紀錄；重新計算會先軟刪除舊的那一筆。
+            entity.HasIndex(e => new { e.EmployeeId, e.PeriodMonth }).IsUnique().HasFilter("[IsDeleted] = 0");
+
+            entity.HasOne(e => e.Employee)
+                .WithMany(emp => emp.PayrollRecords)
+                .HasForeignKey(e => e.EmployeeId);
+        });
+
+        // 對所有實作 IAuditable 的實體（Category/Product/Supplier/Customer/User/Employee/
+        // AttendanceRecord/PayrollRecord）自動套用 Global Query Filter：預設查詢一律排除
+        // IsDeleted=true 的資料。個別 Repository 需要看到已刪除資料時（例如 includeDeleted=true、
+        // 或 GetByIdAsync 這種不受刪除狀態影響的查詢），會用 IgnoreQueryFilters() 明確繞過。
         //
         // 注意：這個過濾器也會套用到 Include() 帶出來的關聯物件——例如某個 Customer 被軟刪除後，
         // 舊的 SalesOrder.Include(o => o.Customer) 會讀到 null（因為 SalesOrder 本身沒有套用軟刪除，
@@ -207,7 +265,7 @@ public class MyErpDbContext(DbContextOptions<MyErpDbContext> options) : DbContex
         }
     }
 
-    /// <summary>幫實作 IAuditable 的實體統一設定稽核欄位的型別/長度限制，避免 7 張表重複寫一樣的設定。</summary>
+    /// <summary>幫實作 IAuditable 的實體統一設定稽核欄位的型別/長度限制，避免多張表重複寫一樣的設定。</summary>
     private static void ConfigureAuditColumns<TEntity>(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<TEntity> entity)
         where TEntity : class, IAuditable
     {

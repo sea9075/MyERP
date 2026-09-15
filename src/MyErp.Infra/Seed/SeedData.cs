@@ -38,7 +38,7 @@ public static class SeedData
             Username = DefaultAdminUsername,
             PasswordHash = PasswordHasher.Hash(DefaultAdminPassword),
             DisplayName = "系統管理員",
-            Role = UserRole.Admin,
+            Department = Department.Admin,
         };
         admin.InitializeAudit(SystemUsername);
 

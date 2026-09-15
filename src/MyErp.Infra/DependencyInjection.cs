@@ -40,6 +40,11 @@ public static class DependencyInjection
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<IActivityLogRepository, ActivityLogRepository>();
 
+        // 新增：人資/薪資/出勤系統
+        services.AddScoped<IEmployeeRepository, EmployeeRepository>();
+        services.AddScoped<IAttendanceRecordRepository, AttendanceRecordRepository>();
+        services.AddScoped<IPayrollRecordRepository, PayrollRecordRepository>();
+
         return services;
     }
 }

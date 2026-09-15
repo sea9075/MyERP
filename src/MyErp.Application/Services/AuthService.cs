@@ -43,7 +43,10 @@ public class AuthService(IUserRepository userRepository, IOptions<JwtOptions> jw
             new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new Claim(ClaimTypes.Name, user.Username),
-            new Claim(ClaimTypes.Role, user.Role.ToString()),
+            // 這裡的 ClaimTypes.Role 存的是 Department（部門＝權限角色，見 Domain.Enums.Department），
+            // 沿用 ASP.NET Core 內建的 ClaimTypes.Role，是為了讓 [Authorize(Roles = "...")] 這個
+            // 內建機制可以直接拿來用，不用另外寫一套部門比對邏輯。
+            new Claim(ClaimTypes.Role, user.Department.ToString()),
         };
 
         var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwt.Key));
@@ -63,7 +66,7 @@ public class AuthService(IUserRepository userRepository, IOptions<JwtOptions> jw
             UserId = user.Id,
             Username = user.Username,
             DisplayName = user.DisplayName,
-            Role = user.Role.ToString(),
+            Role = user.Department.ToString(),
         };
     }
 }

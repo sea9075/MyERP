@@ -2,7 +2,7 @@ using MyErp.Domain.Entities;
 
 namespace MyErp.Application.Abstractions;
 
-// 這個檔案把 Phase 1/2 用到的所有 Repository 介面放在一起，方便一眼看到整體資料存取範圍。
+// 這個檔案把 Phase 1/2/人資薪資 用到的所有 Repository 介面放在一起，方便一眼看到整體資料存取範圍。
 // 實作（用 EF Core 操作 Azure SQL Database）都在 MyErp.Infra/Repositories/ 底下，一個介面對一個實作檔。
 //
 // 這次（稽核欄位 + 全面軟刪除）之後，Category/Product/Supplier/Customer 都不再有 Remove()，
@@ -105,6 +105,14 @@ public interface IUserRepository
 {
     /// <summary>只會找到「未刪除」的使用者（Global Query Filter 自動套用）。</summary>
     Task<User?> GetByUsernameAsync(string username, CancellationToken ct = default);
+
+    /// <summary>一律 IgnoreQueryFilters()：EmployeeService 建立/修改員工時，用 Id 查詢不受刪除狀態影響。</summary>
+    Task<User?> GetByIdAsync(int id, CancellationToken ct = default);
+
+    /// <summary>檢查帳號是否已經被其他「未刪除」使用者使用（新增員工時檢查 Username 是否重複用）。</summary>
+    Task<bool> UsernameExistsAsync(string username, CancellationToken ct = default);
+
+    void Add(User user);
 }
 
 /// <summary>
@@ -116,4 +124,47 @@ public interface IActivityLogRepository
     void Add(ActivityLog log);
 
     Task<List<ActivityLog>> SearchAsync(string? username, DateTime? dateFrom, DateTime? dateTo, CancellationToken ct = default);
+}
+
+/// <summary>員工人資資料（新增：人資系統）。</summary>
+public interface IEmployeeRepository
+{
+    /// <summary>includeDeleted=true 時用 IgnoreQueryFilters() 連已離職（軟刪除）的員工都列出來。</summary>
+    Task<List<Employee>> GetAllAsync(bool includeDeleted, CancellationToken ct = default);
+
+    /// <summary>一律 IgnoreQueryFilters()：用 Id 查詢不受刪除狀態影響。</summary>
+    Task<Employee?> GetByIdAsync(int id, CancellationToken ct = default);
+
+    /// <summary>依登入帳號的 UserId 找員工資料，自助打卡（AttendanceService）用這個反查 EmployeeId。</summary>
+    Task<Employee?> GetByUserIdAsync(int userId, CancellationToken ct = default);
+
+    void Add(Employee employee);
+}
+
+/// <summary>每日出勤紀錄（新增：薪資/出勤系統）。</summary>
+public interface IAttendanceRecordRepository
+{
+    Task<List<AttendanceRecord>> SearchAsync(int? employeeId, DateTime? dateFrom, DateTime? dateTo, bool includeDeleted, CancellationToken ct = default);
+
+    /// <summary>一律 IgnoreQueryFilters()：用 Id 查詢不受刪除狀態影響。</summary>
+    Task<AttendanceRecord?> GetByIdAsync(int id, CancellationToken ct = default);
+
+    /// <summary>找某位員工「某一天」未刪除的那筆紀錄——打卡（上班/下班）跟手動建立前都要先查有沒有重複。</summary>
+    Task<AttendanceRecord?> GetByEmployeeAndDateAsync(int employeeId, DateTime workDate, CancellationToken ct = default);
+
+    void Add(AttendanceRecord record);
+}
+
+/// <summary>薪資紀錄（新增：薪資系統）。</summary>
+public interface IPayrollRecordRepository
+{
+    Task<List<PayrollRecord>> SearchAsync(int? employeeId, DateTime? periodMonth, bool includeDeleted, CancellationToken ct = default);
+
+    /// <summary>一律 IgnoreQueryFilters()：用 Id 查詢不受刪除狀態影響。</summary>
+    Task<PayrollRecord?> GetByIdAsync(int id, CancellationToken ct = default);
+
+    /// <summary>找某位員工「某個月份」未刪除的那筆紀錄——重新計算薪資前，要先把舊的軟刪除掉。</summary>
+    Task<PayrollRecord?> GetByEmployeeAndMonthAsync(int employeeId, DateTime periodMonth, CancellationToken ct = default);
+
+    void Add(PayrollRecord record);
 }
