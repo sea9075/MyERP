@@ -18,6 +18,9 @@ public interface IEmployeeService
 
     /// <summary>軟刪除＝離職：Employee.IsDeleted=true。刻意不連動刪除 User——離職後帳號還在，只是通常不會再登入。</summary>
     Task DeleteAsync(int id, string currentUsername, CancellationToken ct = default);
+
+    /// <summary>HR/Manager/Admin 重設員工密碼，不需驗證舊密碼（2026-09-15 新增，見 ResetEmployeePasswordRequest 的說明）。</summary>
+    Task ResetPasswordAsync(int id, ResetEmployeePasswordRequest request, string currentUsername, CancellationToken ct = default);
 }
 
 public class EmployeeService(
@@ -137,6 +140,22 @@ public class EmployeeService(
             ?? throw new BusinessRuleException($"找不到員工 (Id={id})。");
 
         employee.SoftDelete(currentUsername);
+        await unitOfWork.SaveChangesAsync(ct);
+    }
+
+    public async Task ResetPasswordAsync(int id, ResetEmployeePasswordRequest request, string currentUsername, CancellationToken ct = default)
+    {
+        var employee = await employeeRepository.GetByIdAsync(id, ct)
+            ?? throw new BusinessRuleException($"找不到員工 (Id={id})。");
+
+        if (employee.User is null)
+        {
+            // 理論上不會發生（UserId 是必填外鍵），寫出來是為了讓 nullable 警告消失、也方便未來除錯。
+            throw new BusinessRuleException($"員工 (Id={id}) 缺少對應的登入帳號資料，請聯絡系統管理員。");
+        }
+
+        employee.User.PasswordHash = PasswordHasher.Hash(request.NewPassword);
+        employee.User.TouchUpdated(currentUsername);
         await unitOfWork.SaveChangesAsync(ct);
     }
 

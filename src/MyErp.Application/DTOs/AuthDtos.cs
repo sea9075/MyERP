@@ -27,3 +27,17 @@ public class LoginResponse
     /// </summary>
     public string Role { get; set; } = string.Empty;
 }
+
+/// <summary>
+/// 使用者自助修改自己的密碼（右上角選單「密碼修改」，任何登入使用者都可以用，不分部門）。
+/// 需要先驗證目前密碼，跟 HR 在員工管理裡強制重設密碼（不需要舊密碼）不同，見 EmployeeDtos.cs 的
+/// ResetEmployeePasswordRequest 說明。
+/// </summary>
+public class ChangePasswordRequest
+{
+    [Required]
+    public string CurrentPassword { get; set; } = string.Empty;
+
+    [Required, StringLength(100, MinimumLength = 8, ErrorMessage = "密碼至少需要 8 個字元")]
+    public string NewPassword { get; set; } = string.Empty;
+}

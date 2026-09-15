@@ -9,6 +9,7 @@ import {
   FileSearchOutlined,
   IdcardOutlined,
   InboxOutlined,
+  KeyOutlined,
   LogoutOutlined,
   ShopOutlined,
   ShoppingCartOutlined,
@@ -18,11 +19,15 @@ import {
   TeamOutlined,
   UserOutlined,
 } from '@ant-design/icons';
-import { Avatar, Dropdown, Layout, Menu, Space, Tag, Typography } from 'antd';
+import { Avatar, Dropdown, Form, Input, Layout, Menu, Modal, Space, Tag, Typography } from 'antd';
 import type { MenuProps } from 'antd';
+import { useMutation } from '@tanstack/react-query';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { changePassword } from '@/api/auth';
+import { extractErrorMessage } from '@/api/client';
 import type { Department } from '@/api/types';
 import { useAuthStore } from '@/stores/authStore';
+import { extractFormErrorMessages, notifySuccess, notifyValidationErrors } from '@/utils/alerts';
 
 const { Header, Sider, Content } = Layout;
 
@@ -37,6 +42,12 @@ const DEPARTMENT_LABEL: Record<Department, { label: string; color: string }> = {
   Support: { label: '客服部', color: 'cyan' },
 };
 
+interface ChangePasswordFormValues {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+}
+
 export function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
@@ -48,6 +59,39 @@ export function AppLayout() {
   const displayName = useAuthStore((state) => state.displayName);
   const role = useAuthStore((state) => state.role);
   const logout = useAuthStore((state) => state.logout);
+
+  // 右上角選單的「密碼修改」：任何登入使用者都能用（含 HR 自己），需要先輸入目前密碼才能改，
+  // 2026-09-15 新增，對應後端 PUT /api/auth/password（見 EmployeesPage 的「重設密碼」— 那支
+  // 是 HR/Manager/Admin 幫別人強制重設、不需要舊密碼，是不同的 API，開放對象也不一樣）。
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+  const [passwordForm] = Form.useForm<ChangePasswordFormValues>();
+  const changePasswordMutation = useMutation({ mutationFn: changePassword });
+
+  const openPasswordModal = () => {
+    passwordForm.resetFields();
+    setPasswordModalOpen(true);
+  };
+
+  const handleChangePassword = async () => {
+    let values: ChangePasswordFormValues;
+    try {
+      values = await passwordForm.validateFields();
+    } catch (err) {
+      notifyValidationErrors(extractFormErrorMessages(err));
+      return;
+    }
+
+    try {
+      await changePasswordMutation.mutateAsync({
+        currentPassword: values.currentPassword,
+        newPassword: values.newPassword,
+      });
+      notifySuccess('密碼已修改');
+      setPasswordModalOpen(false);
+    } catch (error) {
+      notifyValidationErrors([extractErrorMessage(error)]);
+    }
+  };
 
   const menuItems: MenuItem[] = useMemo(() => {
     const items: MenuItem[] = [{ key: '/', icon: <DashboardOutlined />, label: <Link to="/">儀表板</Link> }];
@@ -149,6 +193,13 @@ export function AppLayout() {
 
   const userMenuItems: MenuProps['items'] = [
     {
+      key: 'change-password',
+      icon: <KeyOutlined />,
+      label: '密碼修改',
+      onClick: openPasswordModal,
+    },
+    { type: 'divider' },
+    {
       key: 'logout',
       icon: <LogoutOutlined />,
       label: '登出',
@@ -208,6 +259,53 @@ export function AppLayout() {
           <Outlet />
         </Content>
       </Layout>
+
+      <Modal
+        title="密碼修改"
+        open={passwordModalOpen}
+        onOk={handleChangePassword}
+        onCancel={() => setPasswordModalOpen(false)}
+        confirmLoading={changePasswordMutation.isPending}
+        okText="修改密碼"
+        cancelText="取消"
+      >
+        <Form form={passwordForm} layout="vertical">
+          <Form.Item
+            name="currentPassword"
+            label="目前密碼"
+            rules={[{ required: true, message: '請輸入目前密碼' }]}
+          >
+            <Input.Password placeholder="請輸入目前密碼" autoFocus />
+          </Form.Item>
+
+          <Form.Item
+            name="newPassword"
+            label="新密碼"
+            rules={[{ required: true, message: '請輸入新密碼' }, { min: 8, message: '密碼至少需要 8 個字元' }]}
+          >
+            <Input.Password placeholder="至少 8 個字元" />
+          </Form.Item>
+
+          <Form.Item
+            name="confirmPassword"
+            label="確認新密碼"
+            dependencies={['newPassword']}
+            rules={[
+              { required: true, message: '請再輸入一次新密碼' },
+              ({ getFieldValue }) => ({
+                validator(_, value) {
+                  if (!value || value === getFieldValue('newPassword')) {
+                    return Promise.resolve();
+                  }
+                  return Promise.reject(new Error('兩次輸入的新密碼不一致'));
+                },
+              }),
+            ]}
+          >
+            <Input.Password placeholder="請再輸入一次新密碼" />
+          </Form.Item>
+        </Form>
+      </Modal>
     </Layout>
   );
 }

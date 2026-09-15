@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from './client';
-import type { CreateEmployeeRequest, EmployeeDto, UpdateEmployeeRequest } from './types';
+import type { CreateEmployeeRequest, EmployeeDto, ResetEmployeePasswordRequest, UpdateEmployeeRequest } from './types';
 
 const KEY = 'employees';
 
@@ -44,5 +44,13 @@ export function useDeleteEmployee() {
   return useMutation({
     mutationFn: (id: number) => apiClient.delete(`/employees/${id}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: [KEY] }),
+  });
+}
+
+/** HR/Manager/Admin 重設員工密碼，不需要輸入舊密碼（2026-09-15 新增）。不影響員工列表資料，不用 invalidate。 */
+export function useResetEmployeePassword() {
+  return useMutation({
+    mutationFn: ({ id, request }: { id: number; request: ResetEmployeePasswordRequest }) =>
+      apiClient.put(`/employees/${id}/password`, request),
   });
 }

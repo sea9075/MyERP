@@ -110,3 +110,14 @@ public class UpdateEmployeeRequest
     /// <summary>一般刪除（離職）還是走 DELETE /api/employees/{id}，不需要特別經過這裡。</summary>
     public bool IsDeleted { get; set; }
 }
+
+/// <summary>
+/// HR/Manager/Admin 在員工管理裡幫員工重設密碼（2026-09-15 新增）。不需要輸入舊密碼——這是
+/// 管理員層級的強制重設，跟使用者自己在右上角選單「密碼修改」（需要輸入目前密碼，見
+/// AuthDtos.cs 的 ChangePasswordRequest）是兩支不同的 API，開放對象也不一樣。
+/// </summary>
+public class ResetEmployeePasswordRequest
+{
+    [Required, StringLength(100, MinimumLength = 8, ErrorMessage = "密碼至少需要 8 個字元")]
+    public string NewPassword { get; set; } = string.Empty;
+}

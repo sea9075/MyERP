@@ -25,6 +25,16 @@ export interface LoginResponse {
   role: Department;
 }
 
+/**
+ * 使用者自助修改自己的密碼（右上角選單「密碼修改」，2026-09-15 新增，任何登入使用者都可以用，
+ * 不分部門）。需要先驗證目前密碼，跟員工管理裡 HR/Manager/Admin 重設別人密碼的
+ * ResetEmployeePasswordRequest（不需要舊密碼）是兩支不同的 API。
+ */
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+
 interface AuditableDto {
   createdAt: string;
   updatedAt: string;
@@ -286,6 +296,14 @@ export interface UpdateEmployeeRequest {
   emergencyContactName?: string | null;
   emergencyContactPhone?: string | null;
   isDeleted: boolean;
+}
+
+/**
+ * HR/Manager/Admin 在員工管理裡幫員工重設密碼（2026-09-15 新增）。不需要輸入舊密碼——這是
+ * 管理員層級的強制重設，跟使用者自己改自己密碼的 ChangePasswordRequest（需要目前密碼）不同。
+ */
+export interface ResetEmployeePasswordRequest {
+  newPassword: string;
 }
 
 // ---------------------------------------------------------------------------

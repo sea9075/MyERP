@@ -39,4 +39,16 @@ public class EmployeesController(IEmployeeService employeeService) : ControllerB
         await employeeService.DeleteAsync(id, this.GetCurrentUsername(), ct);
         return NoContent();
     }
+
+    /// <summary>
+    /// HR/Manager/Admin 重設員工密碼（2026-09-15 新增，使用者決定：跟這個 Controller 其餘操作
+    /// 一樣的權限範圍，不特別把 Manager/Admin 排除在外）。不需要驗證舊密碼，沿用 class 上的
+    /// [Authorize(Roles = "HR,Manager,Admin")]，不用額外加限制。
+    /// </summary>
+    [HttpPut("{id:int}/password")]
+    public async Task<IActionResult> ResetPassword(int id, [FromBody] ResetEmployeePasswordRequest request, CancellationToken ct)
+    {
+        await employeeService.ResetPasswordAsync(id, request, this.GetCurrentUsername(), ct);
+        return NoContent();
+    }
 }

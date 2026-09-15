@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { UndoOutlined } from '@ant-design/icons';
+import { KeyOutlined, UndoOutlined } from '@ant-design/icons';
 import { DatePicker, Form, Input, InputNumber, Modal, Select, Table, Tag } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import dayjs from 'dayjs';
 import { extractErrorMessage } from '@/api/client';
-import { useCreateEmployee, useDeleteEmployee, useEmployees, useUpdateEmployee } from '@/api/employees';
+import { useCreateEmployee, useDeleteEmployee, useEmployees, useResetEmployeePassword, useUpdateEmployee } from '@/api/employees';
 import type { Department, EmployeeDto } from '@/api/types';
 import { AddButton, DeleteButton, EditButton } from '@/components/common/ActionButtons';
 import { PageToolbar } from '@/components/common/PageToolbar';
@@ -42,16 +42,26 @@ interface EmployeeFormValues {
   emergencyContactPhone?: string;
 }
 
+interface ResetPasswordFormValues {
+  newPassword: string;
+}
+
 export function EmployeesPage() {
   const [includeDeleted, setIncludeDeleted] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<EmployeeDto | null>(null);
   const [form] = Form.useForm<EmployeeFormValues>();
+  // 重設密碼跟一般編輯是兩支不同的後端 API（PUT /employees/{id}/password，不需要舊密碼，
+  // HR/Manager/Admin 都能用），所以用獨立的小 Modal，不跟編輯表單混在一起——照搬 PayrollPage
+  // 「編輯獎金」用獨立 Modal 的既有慣例。
+  const [passwordEditing, setPasswordEditing] = useState<EmployeeDto | null>(null);
+  const [passwordForm] = Form.useForm<ResetPasswordFormValues>();
 
   const { data, isLoading } = useEmployees(includeDeleted);
   const createMutation = useCreateEmployee();
   const updateMutation = useUpdateEmployee();
   const deleteMutation = useDeleteEmployee();
+  const resetPasswordMutation = useResetEmployeePassword();
 
   const openCreateModal = () => {
     setEditing(null);
@@ -136,6 +146,33 @@ export function EmployeesPage() {
     }
   };
 
+  const openPasswordModal = (record: EmployeeDto) => {
+    setPasswordEditing(record);
+    passwordForm.resetFields();
+  };
+
+  const handleResetPassword = async () => {
+    if (!passwordEditing) return;
+    let values: ResetPasswordFormValues;
+    try {
+      values = await passwordForm.validateFields();
+    } catch (err) {
+      notifyValidationErrors(extractFormErrorMessages(err));
+      return;
+    }
+
+    try {
+      await resetPasswordMutation.mutateAsync({
+        id: passwordEditing.id,
+        request: { newPassword: values.newPassword },
+      });
+      notifySuccess(`已重設 ${passwordEditing.displayName} 的密碼`);
+      setPasswordEditing(null);
+    } catch (error) {
+      notifyValidationErrors([extractErrorMessage(error)]);
+    }
+  };
+
   /** 復職：走 PUT（Update）把 isDeleted 設回 false，屬於「修改」，用橘色按鈕。 */
   const handleRestore = async (record: EmployeeDto) => {
     try {
@@ -193,6 +230,9 @@ export function EmployeesPage() {
           <>
             <EditButton text onClick={() => openEditModal(record)}>
               編輯
+            </EditButton>
+            <EditButton text icon={<KeyOutlined />} onClick={() => openPasswordModal(record)}>
+              重設密碼
             </EditButton>
             <DeleteButton text onClick={() => handleDelete(record)}>
               離職
@@ -285,6 +325,27 @@ export function EmployeesPage() {
 
           <Form.Item name="emergencyContactPhone" label="緊急聯絡人電話" rules={[{ max: 30 }]}>
             <Input placeholder="選填" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={`重設密碼${passwordEditing ? `：${passwordEditing.displayName}` : ''}`}
+        open={!!passwordEditing}
+        onOk={handleResetPassword}
+        onCancel={() => setPasswordEditing(null)}
+        confirmLoading={resetPasswordMutation.isPending}
+        okText="重設密碼"
+        cancelText="取消"
+        okButtonProps={{ className: 'btn-edit' }}
+      >
+        <Form form={passwordForm} layout="vertical">
+          <Form.Item
+            name="newPassword"
+            label="新密碼"
+            rules={[{ required: true, message: '請輸入新密碼' }, { min: 8, message: '密碼至少需要 8 個字元' }]}
+          >
+            <Input.Password placeholder="至少 8 個字元，不需要輸入舊密碼" autoFocus />
           </Form.Item>
         </Form>
       </Modal>

@@ -13,9 +13,15 @@ public interface IAuthService
 {
     /// <summary>帳密驗證成功則回傳登入結果（含 JWT），失敗回傳 null（Controller 轉成 401）。</summary>
     Task<LoginResponse?> LoginAsync(LoginRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// 使用者自助修改自己的密碼，任何登入使用者都可以用（不分部門）。會先驗證目前密碼，
+    /// 密碼錯誤或找不到帳號都丟 BusinessRuleException（Controller 交給全域例外處理 Middleware 轉成 400）。
+    /// </summary>
+    Task ChangePasswordAsync(int userId, ChangePasswordRequest request, string currentUsername, CancellationToken ct = default);
 }
 
-public class AuthService(IUserRepository userRepository, IOptions<JwtOptions> jwtOptions) : IAuthService
+public class AuthService(IUserRepository userRepository, IUnitOfWork unitOfWork, IOptions<JwtOptions> jwtOptions) : IAuthService
 {
     private readonly JwtOptions _jwt = jwtOptions.Value;
 
@@ -68,5 +74,22 @@ public class AuthService(IUserRepository userRepository, IOptions<JwtOptions> jw
             DisplayName = user.DisplayName,
             Role = user.Department.ToString(),
         };
+    }
+
+    public async Task ChangePasswordAsync(int userId, ChangePasswordRequest request, string currentUsername, CancellationToken ct = default)
+    {
+        // GetByIdAsync 一律 IgnoreQueryFilters()，理論上不會查到已刪除帳號（JWT 還能通過驗證代表帳號
+        // 目前是有效的），但還是用 BusinessRuleException 保護，不讓 null reference 直接炸掉。
+        var user = await userRepository.GetByIdAsync(userId, ct)
+            ?? throw new BusinessRuleException("找不到使用者帳號，請重新登入。");
+
+        if (!PasswordHasher.Verify(request.CurrentPassword, user.PasswordHash))
+        {
+            throw new BusinessRuleException("目前密碼不正確。");
+        }
+
+        user.PasswordHash = PasswordHasher.Hash(request.NewPassword);
+        user.TouchUpdated(currentUsername);
+        await unitOfWork.SaveChangesAsync(ct);
     }
 }
