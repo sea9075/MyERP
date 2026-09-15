@@ -17,6 +17,7 @@ public static class DependencyInjection
         services.AddScoped<IInventoryService, InventoryService>();
         services.AddScoped<ICustomerService, CustomerService>();
         services.AddScoped<IActivityLogService, ActivityLogService>();
+        services.AddScoped<IReportService, ReportService>();
 
         // 新增：人資/薪資/出勤系統
         services.AddScoped<IEmployeeService, EmployeeService>();

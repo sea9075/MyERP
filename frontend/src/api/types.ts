@@ -382,6 +382,139 @@ export interface UpdatePayrollBonusRequest {
   note?: string | null;
 }
 
+// ---------------------------------------------------------------------------
+// 報表（Reports）—— 對應後端 MyErp.Application/DTOs/ReportDtos.cs（2026-09-15 新增，見
+// ERP.md §4.6、Infra-Progress.md §27）。只有 Manager/Admin 能用。CSV 匯出由前端把目前
+// 畫面上已經拿到的資料轉成 CSV 觸發下載（見 utils/csv.ts），後端不提供匯出端點。
+// ---------------------------------------------------------------------------
+
+export interface PurchaseReportBySupplierDto {
+  supplierId: number;
+  supplierName: string;
+  orderCount: number;
+  totalQuantity: number;
+  totalAmount: number;
+}
+
+export interface PurchaseReportByProductDto {
+  productId: number;
+  sku: string;
+  productName: string;
+  categoryName?: string | null;
+  totalQuantity: number;
+  totalAmount: number;
+  averageUnitPrice: number;
+}
+
+export interface PurchaseReportOrderRowDto {
+  orderId: number;
+  orderNo: string;
+  orderDate: string;
+  supplierId: number;
+  supplierName: string;
+  /** 有帶商品/分類篩選時，這裡只是「符合篩選條件」的明細加總，不是整張單的金額。 */
+  totalAmount: number;
+}
+
+export interface PurchaseReportDto {
+  dateFrom: string;
+  dateTo: string;
+  totalOrderCount: number;
+  totalQuantity: number;
+  totalAmount: number;
+  bySupplier: PurchaseReportBySupplierDto[];
+  byProduct: PurchaseReportByProductDto[];
+  orders: PurchaseReportOrderRowDto[];
+}
+
+export interface SalesReportByCustomerDto {
+  customerId?: number | null;
+  /** customerId 為 null 時固定是「一般散客」。 */
+  customerName: string;
+  orderCount: number;
+  totalAmount: number;
+}
+
+export interface SalesReportByProductDto {
+  productId: number;
+  sku: string;
+  productName: string;
+  categoryName?: string | null;
+  totalQuantity: number;
+  totalAmount: number;
+  averageUnitPrice: number;
+}
+
+export interface SalesReportOrderRowDto {
+  orderId: number;
+  orderNo: string;
+  orderDate: string;
+  customerId?: number | null;
+  customerName: string;
+  /** 有帶商品/分類篩選時，這裡只是「符合篩選條件」的明細加總，不是整張單的金額。 */
+  totalAmount: number;
+}
+
+export interface SalesReportDto {
+  dateFrom: string;
+  dateTo: string;
+  totalOrderCount: number;
+  totalQuantity: number;
+  totalAmount: number;
+  byCustomer: SalesReportByCustomerDto[];
+  byProduct: SalesReportByProductDto[];
+  orders: SalesReportOrderRowDto[];
+}
+
+export type GrossMarginGroupBy = 'product' | 'category';
+
+export interface GrossMarginRowDto {
+  /** 依分類彙總（groupBy="category"）時為 null。 */
+  productId?: number | null;
+  sku?: string | null;
+  /** 依商品彙總時是商品名稱；依分類彙總時是分類名稱。 */
+  name: string;
+  categoryName?: string | null;
+  quantitySold: number;
+  salesAmount: number;
+  /** 成本＝銷售數量 × 商品「目前」的參考成本價，不是賣出當下的歷史成本，見 Infra-Progress.md §27。 */
+  costAmount: number;
+  grossProfit: number;
+  /** 0~100，salesAmount 為 0 時固定是 0。 */
+  grossMarginPercent: number;
+}
+
+export interface GrossMarginReportDto {
+  dateFrom: string;
+  dateTo: string;
+  groupBy: GrossMarginGroupBy;
+  rows: GrossMarginRowDto[];
+  totalSalesAmount: number;
+  totalCostAmount: number;
+  totalGrossProfit: number;
+  overallGrossMarginPercent: number;
+}
+
+export interface InventoryReportRowDto {
+  productId: number;
+  sku: string;
+  name: string;
+  categoryName?: string | null;
+  unit: string;
+  currentStock: number;
+  safetyStock: number;
+  isLowStock: boolean;
+  costPrice: number;
+  /** 估計庫存金額 = currentStock × costPrice。 */
+  estimatedValue: number;
+}
+
+export interface InventoryReportDto {
+  rows: InventoryReportRowDto[];
+  lowStockCount: number;
+  totalEstimatedValue: number;
+}
+
 /** 後端 ExceptionHandlingMiddleware／401 統一回傳格式：{ message: string }。 */
 export interface ApiErrorPayload {
   message?: string;

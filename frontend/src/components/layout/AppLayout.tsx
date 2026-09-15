@@ -4,6 +4,7 @@ import {
   AppstoreOutlined,
   BarsOutlined,
   ClockCircleOutlined,
+  BarChartOutlined,
   DashboardOutlined,
   DollarOutlined,
   FileSearchOutlined,
@@ -163,6 +164,14 @@ export function AppLayout() {
         key: '/activity-logs',
         icon: <FileSearchOutlined />,
         label: <Link to="/activity-logs">操作紀錄</Link>,
+      });
+
+      // 報表模組（ERP.md §4.6 Phase 3，Infra-Progress.md §27，2026-09-15 新增），只有 Manager/Admin
+      // 看得到（使用者決定，跟操作紀錄同樣的權限收斂）。
+      items.push({
+        key: '/reports',
+        icon: <BarChartOutlined />,
+        label: <Link to="/reports">報表</Link>,
       });
     }
 

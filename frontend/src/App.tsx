@@ -16,6 +16,7 @@ import { PayrollPage } from '@/pages/PayrollPage';
 import { ProductsPage } from '@/pages/ProductsPage';
 import { PurchaseOrderFormPage } from '@/pages/PurchaseOrderFormPage';
 import { PurchaseOrdersPage } from '@/pages/PurchaseOrdersPage';
+import { ReportsPage } from '@/pages/ReportsPage';
 import { SalesOrderFormPage } from '@/pages/SalesOrderFormPage';
 import { SalesOrdersPage } from '@/pages/SalesOrdersPage';
 import { SuppliersPage } from '@/pages/SuppliersPage';
@@ -78,11 +79,13 @@ export function App() {
               </RequireDepartment>
             }
           />
-          {/* 新增出貨單：只有 Support（客服部門）能用（使用者決定），其他部門維持唯讀查詢。 */}
+          {/* 新增出貨單：原本只有 Support（客服部門）能用，2026-09-15 使用者要求追加開放給
+              Manager/Admin（系統裡 Manager/Admin 權限一直保持完全相同，這次比照辦理）；
+              Product 部門維持唯讀查詢。 */}
           <Route
             path="/sales-orders/new"
             element={
-              <RequireDepartment allowed={['Support']}>
+              <RequireDepartment allowed={['Support', 'Manager', 'Admin']}>
                 <SalesOrderFormPage />
               </RequireDepartment>
             }
@@ -147,6 +150,17 @@ export function App() {
             element={
               <RequireDepartment allowed={['Manager', 'Admin']}>
                 <ActivityLogsPage />
+              </RequireDepartment>
+            }
+          />
+
+          {/* 報表模組（ERP.md §4.6 Phase 3，Infra-Progress.md §27，2026-09-15 新增）：依使用者決定，
+              只開放 Manager/Admin，跟操作紀錄同樣的權限收斂。 */}
+          <Route
+            path="/reports"
+            element={
+              <RequireDepartment allowed={['Manager', 'Admin']}>
+                <ReportsPage />
               </RequireDepartment>
             }
           />

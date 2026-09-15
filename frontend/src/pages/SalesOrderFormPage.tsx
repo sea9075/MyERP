@@ -19,7 +19,10 @@ interface SalesOrderFormValues {
   items: CreateSalesOrderItemRequest[];
 }
 
-/** 只有 Support（客服部門）能進到這頁：新增出貨單、自動扣庫存（ERP.md §4.4）。 */
+/**
+ * Support/Manager/Admin 能進到這頁：新增出貨單、自動扣庫存（ERP.md §4.4）。
+ * 原本只有 Support，2026-09-15 使用者要求追加開放給 Manager/Admin。
+ */
 export function SalesOrderFormPage() {
   const navigate = useNavigate();
   const [form] = Form.useForm<SalesOrderFormValues>();

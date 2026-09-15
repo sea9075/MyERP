@@ -16,13 +16,14 @@ import { formatCurrency, formatDateTime } from '@/utils/format';
 const { RangePicker } = DatePicker;
 
 /**
- * 出貨單：Product/Manager/Admin/Support 都能查詢，但新增／作廢只開放給 Support
- * （客服部門，使用者決定），其他部門維持唯讀，畫面上看不到「新增出貨單」按鈕跟「作廢」操作。
+ * 出貨單：Product/Manager/Admin/Support 都能查詢，新增／作廢原本只開放給 Support（客服部門），
+ * 2026-09-15 使用者要求追加開放給 Manager/Admin（見 App.tsx／SalesOrdersController 的說明），
+ * Product 部門維持唯讀，畫面上看不到「新增出貨單」按鈕跟「作廢」操作。
  */
 export function SalesOrdersPage() {
   const navigate = useNavigate();
   const role = useAuthStore((state) => state.role);
-  const canManage = role === 'Support';
+  const canManage = role === 'Support' || role === 'Manager' || role === 'Admin';
   const [dateRange, setDateRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>(null);
   const [customerId, setCustomerId] = useState<number | undefined>();
 

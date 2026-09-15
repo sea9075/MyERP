@@ -162,3 +162,12 @@ body {
 .ant-form-item-explain-error {
   display: none !important;
 }
+
+/*
+ * ReportsPage.tsx 的「報表」標題：使用者回報標題上方還有約 26.6px 的留白（單純把
+ * Typography.Title 的 inline style 設 marginTop:0 蓋不掉，猜測是 antd 自己的
+ * CSS-in-JS 樣式跟 inline style 打架），這裡用有 !important 的獨立 class 強制蓋成 0。
+ */
+.reports-page-title.ant-typography {
+  margin-top: 0 !important;
+}
