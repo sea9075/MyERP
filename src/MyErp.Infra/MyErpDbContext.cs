@@ -24,6 +24,7 @@ public class MyErpDbContext(DbContextOptions<MyErpDbContext> options) : DbContex
     public DbSet<SalesOrderItem> SalesOrderItems => Set<SalesOrderItem>();
     public DbSet<InventoryTransaction> InventoryTransactions => Set<InventoryTransaction>();
     public DbSet<ActivityLog> ActivityLogs => Set<ActivityLog>();
+    public DbSet<Notification> Notifications => Set<Notification>();
 
     // 新增：人資/薪資/出勤系統
     public DbSet<Employee> Employees => Set<Employee>();
@@ -190,6 +191,19 @@ public class MyErpDbContext(DbContextOptions<MyErpDbContext> options) : DbContex
         {
             entity.Property(e => e.Api).HasMaxLength(300).IsRequired();
             entity.Property(e => e.CreatedBy).HasMaxLength(50).IsRequired();
+        });
+
+        // 系統通知（2026-09-15 新增：worker 低庫存自動通知，見 Notification 實體的說明）。
+        // 跟 ActivityLog 一樣不套用 ConfigureAuditColumns／Global Query Filter——不是 IAuditable，
+        // 不需要稽核欄位，也不會被軟刪除。
+        modelBuilder.Entity<Notification>(entity =>
+        {
+            entity.Property(e => e.Type).HasMaxLength(30).IsRequired();
+            entity.Property(e => e.Message).HasMaxLength(500).IsRequired();
+
+            entity.HasOne(e => e.Product)
+                .WithMany()
+                .HasForeignKey(e => e.ProductId);
         });
 
         // ---- 新增：人資/薪資/出勤系統 ----

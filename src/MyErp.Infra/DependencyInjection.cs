@@ -1,7 +1,9 @@
+using Azure.Messaging.ServiceBus;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using MyErp.Application.Abstractions;
+using MyErp.Infra.Messaging;
 using MyErp.Infra.Repositories;
 
 namespace MyErp.Infra;
@@ -44,6 +46,24 @@ public static class DependencyInjection
         services.AddScoped<IEmployeeRepository, EmployeeRepository>();
         services.AddScoped<IAttendanceRecordRepository, AttendanceRecordRepository>();
         services.AddScoped<IPayrollRecordRepository, PayrollRecordRepository>();
+
+        // 新增：worker 低庫存自動通知（2026-09-15，見 Infra-Progress.md §31）。
+        services.AddScoped<INotificationRepository, NotificationRepository>();
+
+        // ServiceBusClient 官方建議整個應用程式共用一個單例，本身是 thread-safe 的。
+        // 本機開發如果還沒設定 ServiceBus:ConnectionString（例如剛 clone 專案、還沒跑
+        // dotnet user-secrets set），就退回 NullEventPublisher，不要讓整個 API／單元測試開不起來
+        // ——事件發布本來就是 best-effort，見 SalesOrderService／PurchaseOrderService 呼叫端的說明。
+        var serviceBusConnectionString = configuration["ServiceBus:ConnectionString"];
+        if (!string.IsNullOrWhiteSpace(serviceBusConnectionString))
+        {
+            services.AddSingleton(new ServiceBusClient(serviceBusConnectionString));
+            services.AddScoped<IEventPublisher, ServiceBusEventPublisher>();
+        }
+        else
+        {
+            services.AddScoped<IEventPublisher, NullEventPublisher>();
+        }
 
         return services;
     }

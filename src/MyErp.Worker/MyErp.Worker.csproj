@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!--
+      固定的 UserSecretsId（跟 MyErp.Api 是不同的一組，各專案各自獨立）：本機開發用的
+      ConnectionStrings:DefaultConnection／ServiceBus:ConnectionString 都存在這裡，不會進到 Git。
+    -->
+    <UserSecretsId>7d2e4c91-3a5f-4b8e-9c1d-2e3f4a5b6c7d</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.12" />
+    <!-- InventoryEventBackgroundService 直接用 ServiceBusClient/ServiceBusProcessor 訂閱佇列，
+         不透過 MyErp.Infra 的 IEventPublisher（那個介面是設計給「發布」事件用的）。 -->
+    <PackageReference Include="Azure.Messaging.ServiceBus" Version="7.20.2" />
+    <!-- Program.cs 明確呼叫 AddUserSecrets<Program>()：Worker 專案（不像 MyErp.Api 用的
+         Microsoft.NET.Sdk.Web）沒有透過共用框架自動帶入這個套件，且 Generic Host 預設只有在
+         Development 環境才會自動載入 User Secrets，這裡不想依賴環境變數設定，所以明確參考、
+         明確呼叫（見 Program.cs 的說明）。 -->
+    <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="10.0.12" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MyErp.Domain\MyErp.Domain.csproj" />
+    <ProjectReference Include="..\MyErp.Application\MyErp.Application.csproj" />
+    <ProjectReference Include="..\MyErp.Infra\MyErp.Infra.csproj" />
+  </ItemGroup>
+
+  <!-- Worker SDK 專案不像 Web SDK 那樣自動把 appsettings*.json 複製到輸出目錄，要手動宣告。 -->
+  <ItemGroup>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="appsettings.Development.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>

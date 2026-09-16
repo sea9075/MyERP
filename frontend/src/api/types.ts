@@ -515,6 +515,25 @@ export interface InventoryReportDto {
   totalEstimatedValue: number;
 }
 
+// ---------------------------------------------------------------------------
+// 通知（Notification）—— 對應後端 MyErp.Application/DTOs/NotificationDtos.cs（2026-09-15 新增：
+// worker 低庫存自動通知，見 Infra-Progress.md §31）。只有 Product/Manager/Admin 能用，
+// 跟商品/庫存同一群組權限。
+// ---------------------------------------------------------------------------
+
+/** 目前只有 "LowStock" 一種，用字串保留未來擴充其他通知類型的空間（對應後端同名欄位）。 */
+export type NotificationType = 'LowStock';
+
+export interface NotificationDto {
+  id: number;
+  type: NotificationType;
+  productId: number;
+  productName?: string | null;
+  message: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
 /** 後端 ExceptionHandlingMiddleware／401 統一回傳格式：{ message: string }。 */
 export interface ApiErrorPayload {
   message?: string;

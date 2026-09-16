@@ -13,6 +13,9 @@
     <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.12" />
     <!-- 提供 IServiceCollection，讓 DependencyInjection.cs 的 AddMyErpApplication() 擴充方法可以用。 -->
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
+    <!-- 提供 ILogger&lt;T&gt;：SalesOrderService／PurchaseOrderService／InventoryEventHandler
+         發布/處理庫存事件失敗時記錄警告用（2026-09-15 新增，見 Infra-Progress.md §31）。 -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" />
   </ItemGroup>
 
   <ItemGroup>

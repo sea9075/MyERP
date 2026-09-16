@@ -113,7 +113,19 @@ if (app.Environment.IsDevelopment())
 // 放在管線最前面，確保後面任何 middleware／controller 丟出的例外都攔得到。
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
-app.UseHttpsRedirection();
+// 2026-09-16 移除 UseHttpsRedirection（見 Infra-Progress.md §17、MyERP-gitops Helm chart）：
+// 正式環境的實際路徑是「瀏覽器 → Cloudflare 邊緣（TLS 在這裡終止）→ Cloudflare Tunnel →
+// Cilium Gateway API（只監聽 HTTP port 80，叢集內完全沒有 TLS）→ 這個 Pod」，Pod 收到的
+// 永遠是 plain HTTP 請求。如果留著 UseHttpsRedirection，這裡會對每個請求回 307 導去
+// https://...，瀏覽器照做後在 Cloudflare 邊緣又被終止、又轉成 HTTP 送進來，又被導向
+// https——形成無限重導迴圈，正式環境會整個打不通。TLS 這件事完全交給 Cloudflare 邊緣負責，
+// 應用程式本身不需要、也不能再做一次。
+
+// K8s liveness/readiness probe 用的健康檢查端點：故意不用 Swagger（Swagger 只有
+// Development 環境才會啟用，見上面 IsDevelopment() 判斷，正式環境會 404），也不用經過
+// JWT 驗證，單純回 200 讓 kubelet 判斷這個 Pod 是否還活著、可以開始收流量
+//（見 MyERP-gitops Helm chart 的 api-deployment.yaml）。
+app.MapGet("/healthz", () => Results.Ok());
 
 app.UseCors("Frontend");
 

@@ -173,3 +173,29 @@ public interface IPayrollRecordRepository
 
     void Add(PayrollRecord record);
 }
+
+/// <summary>
+/// 系統通知（2026-09-15 新增：worker 低庫存自動通知，見 MyErp.Domain.Entities.Notification 的說明）。
+/// 這張表沒有稽核欄位／軟刪除，跟 ActivityLog 一樣是系統紀錄，但多了 IsRead 這個可變欄位。
+/// </summary>
+public interface INotificationRepository
+{
+    void Add(Notification notification);
+
+    /// <summary>
+    /// 檢查某個商品目前是否已經有一筆「未讀」的低庫存通知——worker（IInventoryEventHandler）
+    /// 用這個做去重，避免同一個商品持續低於安全庫存時，每次庫存異動都重複寫入通知
+    /// （使用者把這筆通知標記已讀之後，如果庫存還是低，下一次庫存減少的異動才會再產生新的通知）。
+    /// </summary>
+    Task<bool> HasUnreadLowStockAsync(int productId, CancellationToken ct = default);
+
+    /// <summary>依時間新到舊排序；unreadOnly=true 時只回傳尚未標記已讀的通知。</summary>
+    Task<List<Notification>> GetAllAsync(bool unreadOnly, CancellationToken ct = default);
+
+    Task<int> CountUnreadAsync(CancellationToken ct = default);
+
+    Task<Notification?> GetByIdAsync(int id, CancellationToken ct = default);
+
+    /// <summary>直接在資料庫端批次更新（ExecuteUpdateAsync），不用先把整批通知讀進記憶體逐筆改。</summary>
+    Task MarkAllReadAsync(CancellationToken ct = default);
+}

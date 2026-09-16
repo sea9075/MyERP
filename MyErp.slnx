@@ -4,6 +4,7 @@
     <Project Path="src/MyErp.Application/MyErp.Application.csproj" />
     <Project Path="src/MyErp.Infra/MyErp.Infra.csproj" />
     <Project Path="src/MyErp.Api/MyErp.Api.csproj" />
+    <Project Path="src/MyErp.Worker/MyErp.Worker.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="src/MyErp.Tests/MyErp.Tests.csproj" />

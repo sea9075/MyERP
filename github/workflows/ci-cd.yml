@@ -1,0 +1,96 @@
+name: CI - Build & Deploy
+
+# 2026-09-16 新增（見 Infra-Progress.md §32、Hybrid-Cloud.md §8/§9）。
+#
+# 流程：push 到 main（且 src/ 底下有變更）→ build backend-api / worker 兩個容器映像 →
+# 推到 Azure Container Registry (myerpacr) → checkout MyERP-gitops repo → 用 yq 更新
+# Helm chart values.yaml 裡的 image tag → commit + push 回 gitops repo → ArgoCD 偵測到
+# gitops repo 變更後自動 sync 到叢集（這一段是 ArgoCD 自己做的，不在這個 workflow 裡）。
+#
+# 需要在這個 repo（MyERP）的 Settings → Secrets and variables → Actions 設定三個 Secret：
+#   - ACR_USERNAME：myerpacr 的 Admin username（Azure Portal → myerpacr → 存取金鑰）
+#   - ACR_PASSWORD：myerpacr 的 Admin password（同一頁，password 或 password2 擇一）
+#   - GITOPS_PAT：一組只對 MyERP-gitops repo 有 Contents 讀寫權限的 GitHub Personal Access
+#     Token（建議用 Fine-grained PAT，Repository access 限定選 MyERP-gitops 這一個 repo，
+#     Permissions 給 Contents: Read and write 即可，不需要其他權限）
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - '.github/workflows/ci-cd.yml'
+  workflow_dispatch: {} # 允許在 GitHub Actions 頁面手動觸發，方便第一次設定時測試
+
+env:
+  ACR_LOGIN_SERVER: myerpacr.azurecr.io
+  API_IMAGE: myerp-api
+  WORKER_IMAGE: myerp-worker
+  GITOPS_REPO: sea9075/MyERP-gitops
+  # 對應 Helm chart 在 MyERP-gitops repo 裡的實際路徑，見該 repo 的 README／
+  # Infra-Progress.md §32 的說明；如果之後改了 chart 目錄名稱，這裡也要跟著改。
+  GITOPS_VALUES_PATH: myerp/values.yaml
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout MyERP
+        uses: actions/checkout@v4
+
+      - name: 產生映像標籤（用短 commit SHA，方便追溯對應到哪次 commit）
+        id: vars
+        run: echo "tag=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: 登入 Azure Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.ACR_LOGIN_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Build 並推送 backend-api 映像
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: src/MyErp.Api/Dockerfile
+          push: true
+          tags: |
+            ${{ env.ACR_LOGIN_SERVER }}/${{ env.API_IMAGE }}:${{ steps.vars.outputs.tag }}
+            ${{ env.ACR_LOGIN_SERVER }}/${{ env.API_IMAGE }}:latest
+
+      - name: Build 並推送 worker 映像
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: src/MyErp.Worker/Dockerfile
+          push: true
+          tags: |
+            ${{ env.ACR_LOGIN_SERVER }}/${{ env.WORKER_IMAGE }}:${{ steps.vars.outputs.tag }}
+            ${{ env.ACR_LOGIN_SERVER }}/${{ env.WORKER_IMAGE }}:latest
+
+      - name: Checkout MyERP-gitops
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.GITOPS_REPO }}
+          token: ${{ secrets.GITOPS_PAT }}
+          path: gitops
+
+      - name: 更新 gitops repo 的 image tag
+        working-directory: gitops
+        run: |
+          yq -i '.image.api.tag = "${{ steps.vars.outputs.tag }}"' ${{ env.GITOPS_VALUES_PATH }}
+          yq -i '.image.worker.tag = "${{ steps.vars.outputs.tag }}"' ${{ env.GITOPS_VALUES_PATH }}
+
+      - name: Commit 並 push gitops repo（沒有實際變更時略過，避免空 commit）
+        working-directory: gitops
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ${{ env.GITOPS_VALUES_PATH }}
+          if git diff --cached --quiet; then
+            echo "沒有變更，略過 commit"
+          else
+            git commit -m "chore: update image tag to ${{ steps.vars.outputs.tag }} (from MyERP@${{ github.sha }})"
+            git push
+          fi

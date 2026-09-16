@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Moq;
 using MyErp.Application.Abstractions;
 using MyErp.Application.Common;
@@ -16,6 +17,11 @@ public class SalesOrderServiceTests
     private readonly Mock<ICustomerRepository> _customerRepository = new();
     private readonly Mock<IInventoryTransactionRepository> _inventoryTransactionRepository = new();
     private readonly Mock<IUnitOfWork> _unitOfWork = new();
+    // 2026-09-15 新增（worker 低庫存自動通知，見 Infra-Progress.md §31）：CreateAsync 成立後
+    // 會呼叫 IEventPublisher 發布事件，這裡不特別驗證有沒有呼叫（那是附加的 best-effort 行為，
+    // 不是這個 Service 的核心業務規則），只是讓建構子能正常組起來。
+    private readonly Mock<IEventPublisher> _eventPublisher = new();
+    private readonly Mock<ILogger<SalesOrderService>> _logger = new();
     private readonly SalesOrderService _sut;
 
     public SalesOrderServiceTests()
@@ -29,7 +35,9 @@ public class SalesOrderServiceTests
             _productRepository.Object,
             _customerRepository.Object,
             _inventoryTransactionRepository.Object,
-            _unitOfWork.Object);
+            _unitOfWork.Object,
+            _eventPublisher.Object,
+            _logger.Object);
     }
 
     [Fact]

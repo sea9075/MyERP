@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using MyErp.Application.Abstractions;
 using MyErp.Application.Common;
 using MyErp.Application.DTOs;
@@ -34,7 +35,9 @@ public class PurchaseOrderService(
     IProductRepository productRepository,
     ISupplierRepository supplierRepository,
     IInventoryTransactionRepository inventoryTransactionRepository,
-    IUnitOfWork unitOfWork) : IPurchaseOrderService
+    IUnitOfWork unitOfWork,
+    IEventPublisher eventPublisher,
+    ILogger<PurchaseOrderService> logger) : IPurchaseOrderService
 {
     public async Task<List<PurchaseOrderDto>> SearchAsync(DateTime? dateFrom, DateTime? dateTo, int? supplierId, CancellationToken ct = default)
     {
@@ -186,6 +189,22 @@ public class PurchaseOrderService(
         // order.Id 已經存在（這是既有單據），商品庫存、單據狀態、異動紀錄一次 SaveChanges 就能
         // 一起提交，不需要像 CreateAsync 那樣分兩階段存檔，EF Core 本身就會把這些變更包在同一個交易裡。
         await unitOfWork.SaveChangesAsync(ct);
+
+        // 作廢進貨單會把當初加的庫存扣回去（庫存減少），這裡逐一發布事件讓 worker 非同步檢查
+        // 低庫存（2026-09-15 新增，見 Infra-Progress.md §31）。進貨單「建立」是加庫存，不會觸發
+        // 這個事件；只有「作廢」跟出貨單「建立」這兩種會讓庫存變少的操作才會觸發，
+        // 見 IEventPublisher 的說明。同樣包在 try/catch，Service Bus 暫時連不上不影響作廢本身成立。
+        foreach (var productId in voidQuantityByProductId.Keys)
+        {
+            try
+            {
+                await eventPublisher.PublishInventoryDecreasedAsync(new InventoryDecreasedEvent(productId), ct);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "發布庫存減少事件失敗 (ProductId={ProductId})，不影響進貨單作廢本身已經成立。", productId);
+            }
+        }
 
         return ToDto(order);
     }

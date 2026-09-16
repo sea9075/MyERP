@@ -8,6 +8,8 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.12" />
+    <!-- worker 低庫存自動通知（2026-09-15 新增）：ServiceBusEventPublisher 用這個發布事件到 Azure Service Bus。 -->
+    <PackageReference Include="Azure.Messaging.ServiceBus" Version="7.20.2" />
     <!-- 只有跑 `dotnet ef migrations add` 這類設計期工具時才會用到，正式執行不需要，所以 PrivateAssets=all。 -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12">
       <PrivateAssets>all</PrivateAssets>

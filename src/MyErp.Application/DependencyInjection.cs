@@ -24,6 +24,12 @@ public static class DependencyInjection
         services.AddScoped<IAttendanceService, AttendanceService>();
         services.AddScoped<IPayrollService, PayrollService>();
 
+        // 新增：worker 低庫存自動通知（2026-09-15，見 Infra-Progress.md §31）。
+        // INotificationService 給 MyErp.Api（通知列表 API）用；IInventoryEventHandler 給
+        // MyErp.Worker（訂閱 Service Bus）用，兩者都註冊在這裡，因為都是 Application 層服務。
+        services.AddScoped<INotificationService, NotificationService>();
+        services.AddScoped<IInventoryEventHandler, InventoryEventHandler>();
+
         return services;
     }
 }

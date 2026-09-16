@@ -12,6 +12,7 @@ import { InventoryTransactionsPage } from '@/pages/InventoryTransactionsPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { MyAttendancePage } from '@/pages/MyAttendancePage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
+import { NotificationsPage } from '@/pages/NotificationsPage';
 import { PayrollPage } from '@/pages/PayrollPage';
 import { ProductsPage } from '@/pages/ProductsPage';
 import { PurchaseOrderFormPage } from '@/pages/PurchaseOrderFormPage';
@@ -112,6 +113,16 @@ export function App() {
             element={
               <RequireDepartment allowed={['Product', 'Manager', 'Admin']}>
                 <InventoryTransactionsPage />
+              </RequireDepartment>
+            }
+          />
+          {/* 通知（worker 低庫存自動通知，2026-09-15 新增，見 Infra-Progress.md §31）：
+              跟商品/庫存同一群組權限，比照辦理開放 Product/Manager/Admin。 */}
+          <Route
+            path="/notifications"
+            element={
+              <RequireDepartment allowed={['Product', 'Manager', 'Admin']}>
+                <NotificationsPage />
               </RequireDepartment>
             }
           />

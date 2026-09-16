@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import {
   AppstoreOutlined,
   BarsOutlined,
+  BellOutlined,
   ClockCircleOutlined,
   BarChartOutlined,
   DashboardOutlined,
@@ -20,12 +21,13 @@ import {
   TeamOutlined,
   UserOutlined,
 } from '@ant-design/icons';
-import { Avatar, Dropdown, Form, Input, Layout, Menu, Modal, Space, Tag, Typography } from 'antd';
+import { Avatar, Badge, Dropdown, Form, Input, Layout, Menu, Modal, Space, Tag, Typography } from 'antd';
 import type { MenuProps } from 'antd';
 import { useMutation } from '@tanstack/react-query';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { changePassword } from '@/api/auth';
 import { extractErrorMessage } from '@/api/client';
+import { useUnreadNotificationCount } from '@/api/notifications';
 import type { Department } from '@/api/types';
 import { useAuthStore } from '@/stores/authStore';
 import { extractFormErrorMessages, notifySuccess, notifyValidationErrors } from '@/utils/alerts';
@@ -60,6 +62,11 @@ export function AppLayout() {
   const displayName = useAuthStore((state) => state.displayName);
   const role = useAuthStore((state) => state.role);
   const logout = useAuthStore((state) => state.logout);
+
+  // 通知（worker 低庫存自動通知，2026-09-15 新增，見 Infra-Progress.md §31）：跟商品/庫存
+  // 同一群組權限，只有這幾個角色看得到選單項目，也只有這幾個角色需要輪詢未讀數。
+  const canSeeNotifications = role === 'Product' || role === 'Manager' || role === 'Admin';
+  const { data: unreadNotificationCount } = useUnreadNotificationCount(canSeeNotifications);
 
   // 右上角選單的「密碼修改」：任何登入使用者都能用（含 HR 自己），需要先輸入目前密碼才能改，
   // 2026-09-15 新增，對應後端 PUT /api/auth/password（見 EmployeesPage 的「重設密碼」— 那支
@@ -105,6 +112,18 @@ export function AppLayout() {
       { key: '/suppliers', icon: <AppstoreOutlined />, label: <Link to="/suppliers">供應商管理</Link> },
       { key: '/products', icon: <ShopOutlined />, label: <Link to="/products">商品管理</Link> },
       { key: '/inventory', icon: <BarsOutlined />, label: <Link to="/inventory">庫存總覽</Link> },
+      {
+        key: '/notifications',
+        icon: <BellOutlined />,
+        label: (
+          <Link to="/notifications">
+            <Space>
+              通知
+              {!!unreadNotificationCount && <Badge count={unreadNotificationCount} size="small" />}
+            </Space>
+          </Link>
+        ),
+      },
     ];
 
     if (role === 'Product' || role === 'Manager' || role === 'Admin') {
@@ -176,7 +195,7 @@ export function AppLayout() {
     }
 
     return items;
-  }, [role]);
+  }, [role, unreadNotificationCount]);
 
   // 選單選中狀態用「最長前綴相符」判斷，這樣 /purchase-orders/new 這種子頁面也會讓
   // 「進貨單」維持選中，不會整排選單都沒有 highlight。子選單（人資群組）的 key 不是路徑，

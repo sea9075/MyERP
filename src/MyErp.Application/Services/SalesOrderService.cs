@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using MyErp.Application.Abstractions;
 using MyErp.Application.Common;
 using MyErp.Application.DTOs;
@@ -32,7 +33,9 @@ public class SalesOrderService(
     IProductRepository productRepository,
     ICustomerRepository customerRepository,
     IInventoryTransactionRepository inventoryTransactionRepository,
-    IUnitOfWork unitOfWork) : ISalesOrderService
+    IUnitOfWork unitOfWork,
+    IEventPublisher eventPublisher,
+    ILogger<SalesOrderService> logger) : ISalesOrderService
 {
     public async Task<List<SalesOrderDto>> SearchAsync(DateTime? dateFrom, DateTime? dateTo, int? customerId, CancellationToken ct = default)
     {
@@ -136,6 +139,23 @@ public class SalesOrderService(
 
         var saved = await salesOrderRepository.GetByIdAsync(order.Id, ct)
             ?? throw new InvalidOperationException("出貨單儲存後應該要能查得到，這裡不應該發生。");
+
+        // 出貨單成立會扣庫存，這裡逐一發布「庫存減少」事件，讓 worker 非同步檢查低庫存
+        // （2026-09-15 新增，見 Infra-Progress.md §31）。刻意包在 try/catch：Service Bus
+        // 萬一暫時連不上，不該讓已經成立的出貨單整筆失敗——訂單/庫存異動才是這支 API 的
+        // 主要業務，通知只是錦上添花的 best-effort 附加功能。
+        foreach (var productId in stockAfterByProductId.Keys)
+        {
+            try
+            {
+                await eventPublisher.PublishInventoryDecreasedAsync(new InventoryDecreasedEvent(productId), ct);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "發布庫存減少事件失敗 (ProductId={ProductId})，不影響出貨單本身已經成立。", productId);
+            }
+        }
+
         return ToDto(saved);
     }
 
