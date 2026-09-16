@@ -82,11 +82,25 @@ builder.Services.AddSwaggerGen(options =>
 
 builder.Services.AddCors(options =>
 {
-    // ERP.md §2：前端是獨立的 Vite + React 專案，開發時跑在不同的 port，需要開 CORS。
-    // 正式上線網址還沒決定，先只開放本機開發常見的幾個 port；等前端網址確定後要記得回來改。
+    // ERP.md §2 / Hybrid-Cloud.md §7、§8：前端改部署到 Azure Static Web Apps（見
+    // Infra-Progress.md §33），跟這支 API（跑在 K8s）是完全不同網域，瀏覽器會當成跨網域請求，
+    // 不開 CORS 的話瀏覽器會直接擋掉回應。認證用的是 JWT Bearer token（不是 cookie），不會
+    // 遇到 SameSite 跨域的問題，只要白名單設對就好。
+    //
+    // - https://myerp.kuei.dev：規劃中的正式網域（自訂網域 DNS/TLS 設定完成後才會生效）。
+    // - https://*.azurestaticapps.net：Azure Static Web Apps 建立當下會先分配一個隨機的預設
+    //   網址（例如 https://red-flower-0123abcd.azurestaticapps.net），在自訂網域生效之前都要
+    //   先用這個測試。用 SetIsOriginAllowedToAllowWildcardSubdomains() 直接放行整個網域，
+    //   不用等實際網址出來後才回頭改一次程式碼、重新跑一次 CI/CD。
+    // - localhost:5173/3000：本機開發用，保留。
     options.AddPolicy("Frontend", policy =>
     {
-        policy.WithOrigins("http://localhost:5173", "http://localhost:3000")
+        policy.WithOrigins(
+                "http://localhost:5173",
+                "http://localhost:3000",
+                "https://myerp.kuei.dev",
+                "https://*.azurestaticapps.net")
+            .SetIsOriginAllowedToAllowWildcardSubdomains()
             .AllowAnyHeader()
             .AllowAnyMethod();
     });
