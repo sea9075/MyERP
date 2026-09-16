@@ -9,12 +9,21 @@ dist-ssr
 # tsconfig.json（solution 用，只有 references）+ tsconfig.app.json 之後才會產生
 *.tsbuildinfo
 
-# 環境設定檔：這兩個目前雖然只有 API 網址、沒有機密資訊，但慣例上還是不進版控，
-# 避免以後有人不小心把真正的機密（例如正式環境的 API 網址背後接的服務金鑰）也一起 commit 上去。
-# 內容範本見 README.md「開發環境設定」章節，或直接跟 Claude 要一份。
+# 環境設定檔：.env.development 只有 localhost 網址、不影響正式環境，維持不進版控。
+#
+# 2026-09-16 修正（見 Infra-Progress.md §33）：.env.production 反過來**必須**進版控，
+# 不能跟著 .env.* 一起被忽略掉。原因是 Azure Static Web Apps 的 GitHub Actions 是每次都從
+# GitHub 全新 clone 一份原始碼下來 build（跟本機開發完全是兩回事），本機能看到這個檔案是因為
+# 它本來就存在你的工作目錄裡，但如果它沒有被 commit，Azure 建置時的原始碼裡根本沒有這個檔案，
+# Vite build 時 `import.meta.env.VITE_API_BASE_URL` 會是 undefined，axios 的 baseURL 就是空的，
+# 前端所有 API 請求會變成打去前端自己的網域（例如 https://xxx.azurestaticapps.net/auth/login
+# 而不是 https://myerp-api.kuei.dev/api/auth/login），登入永遠會失敗——這正是這次實際遇到的
+# 問題。這個檔案裡本來就只有公開的 API 網址、沒有任何機密（真正的機密在後端用 Key
+# Vault／dotnet user-secrets 管理，跟這個檔案無關），進版控沒有安全疑慮。
 .env
 .env.*
 !.env.example
+!.env.production
 
 # 編輯器/系統
 .vscode/*
