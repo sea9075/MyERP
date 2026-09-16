@@ -1,0 +1,10 @@
+{
+  "//": "2026-09-16（見 Infra-Progress.md §33）：這是純前端 SPA（React Router 做前端路由），瀏覽器網址列上的 /login、/products 這類路徑實際上並沒有對應的實體檔案，只有 index.html 載入後才由 JS 接手判斷要顯示哪個畫面。Azure Static Web Apps 預設收到這種請求會直接找實體檔案、找不到就回 404（直接輸入網址或按重新整理都會踩到），要靠 navigationFallback 告訴它：只要不是明確的靜態資源（JS/CSS/圖片/字型等），一律回 index.html，剩下交給前端路由處理。這個檔案要放在 build 產物的根目錄，Vite 會自動把 public/ 底下的東西原封不動複製過去。",
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": [
+      "/assets/*",
+      "*.{png,jpg,jpeg,svg,ico,css,js,json,woff,woff2,ttf}"
+    ]
+  }
+}
