@@ -24,10 +24,18 @@ public static class DependencyInjection
             // 重新連線時第一個請求常會撞到「還在喚醒中」的暫時性錯誤（SQL 40613 等）。
             // EnableRetryOnFailure 讓 EF Core 遇到這類已知的暫時性錯誤時自動重試，
             // 不用每次都要手動重跑指令或重整頁面。
+            //
+            // 2026-09-16 補上 11002（見 MyERP-gitops 部署時實際踩到的坑，Infra-Progress.md
+            // 有記錄）：K8s 叢集裡的 CoreDNS 在節點資源緊繃時會偶發不穩定，這個 Pod 嘗試解析
+            // Azure SQL 網域名稱時如果剛好撞上，.NET 會丟出 SqlException（Error Number
+            // 11002＝Windows socket 的 WSATRY_AGAIN，DNS 查詢當下沒拿到回應），但這個錯誤碼
+            // 不在 EF Core 內建的「已知暫時性錯誤」清單裡，預設完全不會重試、直接讓整個
+            // Migration／啟動流程炸掉。額外把它加進 errorNumbersToAdd，讓這種一次性的 DNS
+            // 抖動也能被重試機制接住，不用每次都靠重啟 Pod 賭下一次 CoreDNS 剛好正常。
             sqlOptions => sqlOptions.EnableRetryOnFailure(
                 maxRetryCount: 5,
                 maxRetryDelay: TimeSpan.FromSeconds(30),
-                errorNumbersToAdd: null)));
+                errorNumbersToAdd: new[] { 11002 })));
 
         // MyErpDbContext 本身就實作 IUnitOfWork，直接轉接過去即可，不用另外包一個 class。
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<MyErpDbContext>());
