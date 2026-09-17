@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { InfoCircleOutlined, LockOutlined, UserOutlined } from '@ant-design/icons';
-import { Button, Card, Form, Input, Tooltip, Typography } from 'antd';
+import { Alert, Button, Card, Form, Input, Tooltip, Typography } from 'antd';
 import { useMutation } from '@tanstack/react-query';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import type { Location } from 'react-router-dom';
@@ -98,6 +98,18 @@ export function LoginPage() {
           </Typography.Title>
           <Typography.Text type="secondary">請登入以繼續</Typography.Text>
         </div>
+
+        {/* 2026-09-17：資料庫用的是 Azure SQL Database Serverless 方案，長時間沒人用會自動
+            暫停、下一次連線要花幾秒到十幾秒喚醒。這段時間第一次登入很可能會失敗（或卡著等
+            很久），不是系統壞了，先讓使用者知道這是預期行為，请他稍等一下再試一次即可，
+            不用懷疑帳密打錯或系統故障。*/}
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="若剛才長時間沒有人使用系統，資料庫可能正在喚醒中"
+          description="第一次登入偶爾會失敗或需要等待較久，屬正常現象，請稍待幾秒後再嘗試登入一次即可。"
+        />
 
         <Form
           layout="vertical"
